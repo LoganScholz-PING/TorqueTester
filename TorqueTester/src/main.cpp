@@ -1,9 +1,22 @@
+// Official Includes:
 #include <Arduino.h>
 #include <LS7366.h>
+// NOTE for Nextion.h:
+// you need to open NexConfig.h and set the "nexSerial"
+// to the serial port you intend to use on the Arduino.
+// In our case, we are using "Serial2" (pins 16 and 17)
+// for serial communication on the mega
+#include <Nextion.h>
+#include <SPI.h> // nextion needs this
+#include <SD.h> // nextion needs this
+#include <SoftwareSerial.h> // nextion needs this
+// Unofficial Includes:
 #include "ServoMotorControl.h"
 #include "LoadCell.h"
 #include "Heartbeat.h"
 #include "EEPROM_Arduino.h"
+#include "relaypins.h"
+#include "NEX_DISPLAY.h"
 
 
 /* === START PROGRAM SPECIFIC DEFINES === */
@@ -16,6 +29,7 @@
 
 boolean DEBUG = false;
 /* === END PROGRAM SPECIFIC DEFINES === */
+
 
 
 /* === START PROGRAM FLOW CONTROL VARIABLES === */
@@ -52,9 +66,17 @@ boolean motor_moving = false;  // for tracking if motor is moving
 /* ==== END PROGRAM FLOW CONTROL VARIABLES ==== */
 
 
+
+
 /* === START ServoMotorControl.cpp EXTERNS === */
 extern boolean _motor_enable;
 /* ==== END ServoMotorControl.cpp EXTERNS ==== */
+
+
+/* === START NEX_DISPLAY.cpp EXTERNS === */
+extern NexTouch *nex_listen_list[];
+/* ==== END NEX_DISPLAY.cpp EXTERNS ==== */
+
 
 
 
@@ -128,6 +150,8 @@ void checkSerial()
 } // end void checkSerial()
 
 
+
+
 /* *Function Name: void checkOpticalStops()
  * 
  * *Returns: None
@@ -181,6 +205,8 @@ void checkOpticalStops()
 } // void checkOpticalStop()
 
 
+
+
 void ifMovingCheckCountFeedback()
 {
   quad = servoMotorReadQuadratureCount();
@@ -201,26 +227,44 @@ void ifMovingCheckCountFeedback()
 
 
 
+
+void updateEnvironment()
+{
+  //char* cp; // for tracking state machine current state, not implemented
+  //double pos = servoMotorReadRotationAngle(); // doesn't work yet
+  float tq = loadcellReadCurrentValue();
+
+  Serial.print("{,");
+  Serial.print(":T="); Serial.print(tq);
+  //Serial.print(":A="); Serial.print(pos);
+  Serial.print(":MTR="); Serial.print(motor_moving);
+  Serial.println(",}");
+}
+
+
+
+
 void setup() 
 {
-  Serial.begin(115200);
+  Serial.begin(9600);  // for debug output
+  Serial2.begin(9600); // Serial2 is for Nextion communication
   delay(500); // allow serial to settle
 
   servoMotorSetup();
-
   // need to do setupEEPROM() before loadcellSetup()
   // because loadcellSetup() retrieves data from EEPROM
   // like scale_zero_bias and scale_calibration_factor
   setupEEPROM(); 
-
   loadcellSetup();
+  setupNextion();
 
-  pinMode(pinOPTICALSTOP, INPUT);
+  pinMode(pinOPTICALHOME, INPUT);
   pinMode(DEBUG_PIN, INPUT_PULLUP);
 
   // initialize heartbeat to 4 seconds
   StatusSlice.Interval(_heartbeat_interval);
 }
+
 
 void loop() 
 {
@@ -228,7 +272,9 @@ void loop()
   DEBUG = !(_SFR_MEM8(0x109) & B10000000);
 
   checkSerial();
-  checkOpticalStop();
+  checkOpticalStops();
+
+  nexLoop(nex_listen_list);
 
   if (motor_moving)
   {
@@ -238,6 +284,8 @@ void loop()
   hb_timer = millis();
   if (StatusSlice.Triggered(hb_timer))
   {
-    updateEnvironment(); // output heartbeat to serial
+    // *** TODO: UNCOMMENT BELOW LINE WHEN READY TO SHOW 
+    // *** HEARTBEAT AGAIN
+    //updateEnvironment(); // output heartbeat to serial
   } // end void loop()
 }
