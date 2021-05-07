@@ -26,7 +26,6 @@
 #define pinOPTICALHOME 13 // PB7
 //#define pinOPTICALEMERGENCY 14 // NOT ATTACHED YET
 #define DEBUG_PIN 42      // PL7
-
 boolean DEBUG = false;
 /* === END PROGRAM SPECIFIC DEFINES === */
 
@@ -52,9 +51,15 @@ long opt_emergency_debounce_time        = 0;     // 10ms debounce timer that sta
 
 // heartbeat vars
 TimeSlice StatusSlice(2000);       // heartbeat object
-long _heartbeat_interval   = 4000; // 4 second heartbeat
-long _load_update_interval = 50;   // read torque load every 50ms
-unsigned long hb_timer     = 0;    // holds the heartbeat timer in main loop
+TimeSlice ParamSlice(100);
+long _heartbeat_interval    = 4000; // 4 second heartbeat
+long _param_update_interval = 500;  // refresh parameters on the touch screen every 100ms
+long _load_update_interval  = 50;   // read torque load every 50ms
+unsigned long hb_timer      = 0;    // holds the heartbeat timer in main loop
+unsigned long param_timer   = 0;    // holds the param timer in main loop
+
+// Nextion Display vars
+float highest_torque = 0;
 
 // misc vars
 int START_MOTOR      = 1;      // for passing to runMotor()
@@ -74,6 +79,11 @@ extern boolean _motor_enable;
 
 
 /* === START NEX_DISPLAY.cpp EXTERNS === */
+extern NexText ntTORQUE;
+extern NexText ntAIR;
+extern NexText ntMAXTORQUE;
+extern NexText ntRESULT;
+extern NexText ntSTATUS;
 extern NexTouch *nex_listen_list[];
 /* ==== END NEX_DISPLAY.cpp EXTERNS ==== */
 
@@ -175,6 +185,7 @@ void checkOpticalStops()
       (millis() - opt_home_debounce_time >= 10))
   {
     optical_home_stop_hit = true;
+    ntSTATUS.setText("HOME STOP HIT");
     if (DEBUG)
     {
       Serial.println("*OPTICAL HOME STOP HIT*");
@@ -241,6 +252,31 @@ void updateEnvironment()
   Serial.println(",}");
 }
 
+void updateDisplay()
+{
+  // TODO: update the following parameters on the touch screen:
+  // 1-Torque *done*
+  // 2-Highest Torque *done*
+  //   3-Air Pressure !not ready!
+  //   4-State machine state !not ready!
+  
+  char buffer_tq[10]; 
+  float tq = loadcellReadCurrentValue();
+  
+  // decimal to string float (Arduino.h built-in)
+  dtostrf(tq, 6, 2, buffer_tq);
+  // display current torque
+  ntTORQUE.setText(buffer_tq); 
+
+  if ( tq > highest_torque )
+  {
+    highest_torque = tq;
+    dtostrf(highest_torque, 6, 2, buffer_tq);
+    // display highest torque achieved in the current test 
+    ntMAXTORQUE.setText(buffer_tq);
+  }
+
+}
 
 
 
@@ -260,9 +296,13 @@ void setup()
 
   pinMode(pinOPTICALHOME, INPUT);
   pinMode(DEBUG_PIN, INPUT_PULLUP);
+  pinMode(RELAY_2_CTRL, OUTPUT);
+
+  digitalWrite(RELAY_2_CTRL, LOW);
 
   // initialize heartbeat to 4 seconds
   StatusSlice.Interval(_heartbeat_interval);
+  ParamSlice.Interval(_param_update_interval);
 }
 
 
@@ -281,11 +321,17 @@ void loop()
     ifMovingCheckCountFeedback(); 
   }
 
+/* TODO: UNCOMMENT WHEN READY TO SHOW HEARTBEAT AGAIN
   hb_timer = millis();
   if (StatusSlice.Triggered(hb_timer))
   {
-    // *** TODO: UNCOMMENT BELOW LINE WHEN READY TO SHOW 
-    // *** HEARTBEAT AGAIN
-    //updateEnvironment(); // output heartbeat to serial
-  } // end void loop()
+    updateEnvironment(); // output heartbeat to serial
+  } 
+*/
+
+  param_timer = millis();
+  if (ParamSlice.Triggered(param_timer))
+  {
+    updateDisplay();
+  }
 }

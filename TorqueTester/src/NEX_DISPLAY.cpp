@@ -1,6 +1,8 @@
 #include <Arduino.h>
 #include <Nextion.h>
 #include "NEX_DISPLAY.h"
+#include "LoadCell.h"
+#include "relaypins.h"
 
 
 
@@ -42,6 +44,10 @@ NexTouch *nex_listen_list[] =
 /* ==== END NEXTION NexTouch OBJECT INSTANTIATION ==== */
 
 
+/* === START main.cpp EXTERNS === */
+
+extern float highest_torque; // reset to 0 when new test starts
+/* ==== END main.cpp EXTERNS ==== */
 
 
 void setupNextion()
@@ -65,53 +71,59 @@ void setupNextion()
 void nbHOMECallback(void *ptr)
 {
     // TODO
-    Serial.println("inside nbHOMECallback");
+    ntSTATUS.setText("inside nbHOMECallback");
+    ntTORQUE.setText("maybe"); // example of how to update text on nextion display !REMOVE!
 }
 
 void nbTARECallback(void *ptr)
 {
     // TODO
-    Serial.println("inside nbTARECallback");
+    loadcellTare();
+    ntSTATUS.setText("Load Cell Tared");
 }
 
 void nbJOGCWCallback(void *ptr)
 {
     // TODO
-    Serial.println("inside nbJOGCWCallback");
+    ntSTATUS.setText("inside nbJOGCWCallback");
 }
 
 void nbJOGCCWCallback(void *ptr)
 {
     // TODO
-    Serial.println("inside nbJOGCCWCallback");
+    ntSTATUS.setText("inside nbJOGCCWCallback");
 }
 
 void nbSTARTCallback(void *ptr)
 {
     // TODO
-    Serial.println("inside nbSTARTCallback");
+    ntSTATUS.setText("inside nbSTARTCallback");
+    ntMAXTORQUE.setText("0");
+    highest_torque = 0;
 }
 
 void nbSTOPCallback(void *ptr)
 {
     // TODO
-    Serial.println("inside nbSTOPCallback");
+    ntSTATUS.setText("inside nbSTOPCallback");
 }
 
 void nbOPENCallback(void *ptr)
 {
     // TODO
-    Serial.println("inside nbOPENCallback");
+    digitalWrite(RELAY_2_CTRL, LOW);
+    ntSTATUS.setText("CLAMP OPENED");
 }
 
 void nbCLOSECallback(void *ptr)
 {
     // TODO
-    Serial.println("inside nbCLOSECallback");
+    digitalWrite(RELAY_2_CTRL, HIGH);
+    ntSTATUS.setText("CLAMP CLOSED");
 }
 
 void nbCALIBCallback(void *ptr)
 {
     // TODO
-    Serial.println("inside nbCALIBCallback");
+    ntSTATUS.setText("inside nbCALIBCallback");
 }
