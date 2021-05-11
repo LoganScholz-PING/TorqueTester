@@ -68,6 +68,22 @@ long quad            = 0;      // for tracking motor movement
 double start_counts  = 0;      // for tracking motor movement
 double total_counts  = 0;      // for tracking motor movement
 boolean motor_moving = false;  // for tracking if motor is moving
+
+// State machine definitions
+enum MACHINESTATE {
+  Idle = 0, Running = 1, Alarm = 2, Homing = 3, Jogging = 4, SeekToLoad = 5,
+  Loading = 7, Relase = 8, HM_CW_0 = 20, HM_CCW_1 = 21, HM_BACKOFF_2 = 22, 
+  HM_SUCCESS = 23, HM_OFF_SWITCH = 24, CNT_BEGIN = 25, CNT_ACCEL = 28,
+  CNT_RUNNING = 26, CNT_FINISH = 27, Undefined = 99
+};
+
+enum LIMITSTATE { LOW2HIGH = 0, HIGH2LOW = 1, UNKNOWN = 99 };
+
+LIMITSTATE limitState = UNKNOWN;
+
+MACHINESTATE _home_state    = Idle;
+MACHINESTATE _count_state   = Idle;
+MACHINESTATE _machine_state = Idle;
 /* ==== END PROGRAM FLOW CONTROL VARIABLES ==== */
 
 
@@ -221,6 +237,8 @@ void checkOpticalStops()
 void ifMovingCheckCountFeedback()
 {
   quad = servoMotorReadQuadratureCount();
+  // TODO: need to initialize start_counts and total_counts
+  //       when motor movement begins
   if ( (abs(quad-start_counts) >= abs(total_counts)) )
   {   
     servoMotorEnable(MOTOR_DISABLED);

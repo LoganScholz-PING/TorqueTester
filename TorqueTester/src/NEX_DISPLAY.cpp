@@ -66,6 +66,12 @@ void setupNextion()
 }
 
 
+void AirValve(boolean open)
+{
+    // [open == true] will DISCONNECT NO2 from COM2
+    // [open == false] will CONNECT NO2 to COM2
+    digitalWrite(RELAY_2_CTRL, (open) ? 0:1);
+}
 
 
 void nbHOMECallback(void *ptr)
@@ -111,14 +117,14 @@ void nbSTOPCallback(void *ptr)
 void nbOPENCallback(void *ptr)
 {
     // TODO
-    digitalWrite(RELAY_2_CTRL, LOW);
+    AirValve(true);
     ntSTATUS.setText("CLAMP OPENED");
 }
 
 void nbCLOSECallback(void *ptr)
 {
     // TODO
-    digitalWrite(RELAY_2_CTRL, HIGH);
+    AirValve(false);
     ntSTATUS.setText("CLAMP CLOSED");
 }
 
@@ -127,3 +133,5 @@ void nbCALIBCallback(void *ptr)
     // TODO
     ntSTATUS.setText("inside nbCALIBCallback");
 }
+
+
