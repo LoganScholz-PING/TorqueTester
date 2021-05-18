@@ -10,6 +10,7 @@
 #include <SPI.h> // nextion needs this
 #include <SD.h> // nextion needs this
 #include <SoftwareSerial.h> // nextion needs this
+#include <StateMachine.h>
 // Unofficial Includes:
 #include "ServoMotorControl.h"
 #include "LoadCell.h"
@@ -70,25 +71,7 @@ long quad            = 0;      // for tracking motor movement
 double start_counts  = 0;      // for tracking motor movement
 double total_counts  = 0;      // for tracking motor movement
 boolean motor_moving = false;  // for tracking if motor is moving
-
-// State machine definitions
-enum MACHINESTATE {
-  Idle = 0, Running = 1, Alarm = 2, Homing = 3, Jogging = 4, SeekToLoad = 5,
-  Loading = 7, Relase = 8, HM_CW_0 = 20, HM_CCW_1 = 21, HM_BACKOFF_2 = 22, 
-  HM_SUCCESS = 23, HM_OFF_SWITCH = 24, CNT_BEGIN = 25, CNT_ACCEL = 28,
-  CNT_RUNNING = 26, CNT_FINISH = 27, Undefined = 99
-};
-
-enum LIMITSTATE { LOW2HIGH = 0, HIGH2LOW = 1, UNKNOWN = 99 };
-
-LIMITSTATE limitState = UNKNOWN;
-
-MACHINESTATE _home_state    = Idle;
-MACHINESTATE _count_state   = Idle;
-MACHINESTATE _machine_state = Idle;
 /* ==== END PROGRAM FLOW CONTROL VARIABLES ==== */
-
-
 
 
 /* === START ServoMotorControl.cpp EXTERNS === */
@@ -104,6 +87,160 @@ extern NexText ntRESULT;
 extern NexText ntSTATUS;
 extern NexTouch *nex_listen_list[];
 /* ==== END NEX_DISPLAY.cpp EXTERNS ==== */
+
+
+
+
+/* ==== START STATE MACHINE DEFINITIONS ==== */
+StateMachine machine = StateMachine();
+
+// ========= State Functions =========
+
+// **********************************
+// **** STATE0 IDLE (WAIT) STATE ****
+// **********************************
+void state0()
+{
+  Serial.println("State 0 - IDLE STATE");
+}
+
+/* DO WE NEED THIS????
+// generic transition to State 0
+bool transitionS0()
+{
+  return true;
+}
+*/
+
+// State0 -> State1 transition criteria
+bool transitionS0S1()
+{
+  return true;
+}
+
+
+// *********************************
+// **** STATE1 HOME MOTOR STATE ****
+// *********************************
+void state1()
+{
+  Serial.println("State 1 - HOME MOTOR STATE");
+}
+
+// State1 -> State0 transition criteria
+bool transitionS1S0()
+{ 
+  // operator pressed cancel in State1
+  return false; // false for testing
+}
+
+// State1 -> State2 transition criteria
+bool transitionS1S2()
+{ 
+  return true;
+}
+
+
+// ********************************
+// **** STATE2 LOAD CLUB STATE ****
+// ********************************
+void state2()
+{
+  Serial.println("State 2 - LOAD CLUB STATE");
+}
+
+// State2 -> State0 transition criteria
+bool transitionS2S0()
+{ 
+  // operator pressed cancel in State2
+  return false; // false for testing
+}
+
+// State2 -> State3 transition criteria
+bool transitionS2S3()
+{ 
+  return true;
+}
+
+
+// ************************************
+// **** STATE3 READY TO TEST STATE ****
+// ************************************
+void state3()
+{
+  Serial.println("State 3 - READY TO TEST STATE");
+}
+
+// State3 -> State0 transition criteria
+bool transitionS3S0()
+{ 
+  // operator pressed cancel in State3
+  return false; // false for testing
+}
+
+// State3 -> State4 transition criteria
+bool transitionS3S4()
+{ 
+  return true;
+}
+
+
+// ***************************************
+// **** STATE4 TEST IN PROGRESS STATE ****
+// ***************************************
+void state4()
+{
+  Serial.println("State 4 - TEST IN PROGRESS STATE");
+}
+
+// State4 -> State0 transition criteria
+bool transitionS4S0()
+{ 
+  // Operator pressed CANCEL during test
+  return false; // false for testing
+}
+
+// State4 -> State5 transition criteria
+bool transitionS4S5()
+{
+  // 2 conditions can transition you from S4 to S5 (in order of importance)
+  //   1. Emergency optical endstop activated (club broke and failed torque test)
+  //   2. Expected torque value achieved (club passed torque test) 
+  return true;
+}
+
+
+// ************************************
+// **** STATE5 TEST COMPLETE STATE ****
+// ************************************
+void state5()
+{
+  Serial.println("State 5 - TEST COMPLETE STATE");
+}
+
+// State5 -> State0 transition criteria
+bool transitionS5S0()
+{ 
+  // 3 things happen in this state:
+  //  1. Test results are displayed (largest torque value achieved)
+  //  2. Test status is displayed (PASS/FAIL)
+  //  3. A continue button is displayed to take user back to State0
+  return true;
+}
+
+State* S0 = machine.addState(&state0);
+State* S1 = machine.addState(&state1);
+State* S2 = machine.addState(&state2);
+State* S3 = machine.addState(&state3);
+State* S4 = machine.addState(&state4);
+State* S5 = machine.addState(&state5);
+
+/* ===== END STATE MACHINE DEFINITIONS ===== */
+
+
+
+
+
 
 
 
@@ -308,6 +445,18 @@ void setup()
   // initialize heartbeat and param update to touchscreen intervals
   StatusSlice.Interval(_heartbeat_interval);
   ParamSlice.Interval(_param_update_interval);
+
+  //S0->addTransition(&transitionS0, S0); // idk if this is needed
+  S0->addTransition(&transitionS0S1, S1); // IDLE to HOME MOTOR
+  S1->addTransition(&transitionS1S0, S0); // HOME MOTOR to IDLE
+  S1->addTransition(&transitionS1S2, S2); // HOME MOTOR to LOAD CLUB
+  S2->addTransition(&transitionS2S0, S0); // LOAD CLUB to IDLE
+  S2->addTransition(&transitionS2S3, S3); // LOAD CLUB to START TEST
+  S3->addTransition(&transitionS3S0, S0); // START TEST to IDLE
+  S3->addTransition(&transitionS3S4, S4); // START TEST to TEST RUNNING
+  S4->addTransition(&transitionS4S0, S0); // TEST RUNNING to IDLE
+  S4->addTransition(&transitionS4S5, S5); // TEST RUNNING to TEST FINISHED
+  S5->addTransition(&transitionS5S0, S0); // TEST FINISHED to IDLE
 }
 
 
@@ -346,4 +495,7 @@ void loop()
   param_timer = millis();
   if (ParamSlice.Triggered(param_timer)) { updateDisplay(); }
   */
+
+  machine.run();
+  //delay(1000); // may need this delay if loop is too fast for state machine
 }
