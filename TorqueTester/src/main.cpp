@@ -17,14 +17,16 @@
 #include "EEPROM_Arduino.h"
 #include "relaypins.h"
 #include "NEX_DISPLAY.h"
+#include "AirPressure.h"
 
 
 /* === START PROGRAM SPECIFIC DEFINES === */
 #define SOP '<' // denotes start of serial data packet
 #define EOP '>' // denotes end of serial data packet
 
-#define pinOPTICALHOME 13 // PB7
-//#define pinOPTICALEMERGENCY 14 // NOT ATTACHED YET
+#define pinOPTICALHOME 20 // PB7
+//#define pinOPTICALEMERGENCY 19 // NOT ATTACHED YET
+
 #define DEBUG_PIN 42      // PL7
 boolean DEBUG = false;
 /* === END PROGRAM SPECIFIC DEFINES === */
@@ -40,14 +42,14 @@ boolean started = false; // serial data flow control
 boolean ended   = false;   // serial data flow control
 
 // optical stop vars
-boolean optical_home_stop_chk      = false; // samples the digital state of the HOME optical stop
-boolean optical_home_stop_hit      = false; // true for 10ms when rising edge detected on HOME optical stop
-boolean optical_emergency_stop_chk = false; // samples the digital state of the EMERGENCY optical stop
-boolean optical_emergency_stop_hit = false; // true for 10ms when rising edge detected on EMERGENCY optical stop
-boolean prev_opt_home_reading      = false; // state control variable for determining rising edge of HOME stop
-boolean prev_opt_emergency_reading = false; // state control variable for determining rising edge of EMERGENCY stop
-long opt_home_debounce_time             = 0;     // 10ms debounce timer that starts upon detection of rising edge of HOME stop
-long opt_emergency_debounce_time        = 0;     // 10ms debounce timer that starts upon detection of rising edge of EMERGENCY stop
+//boolean optical_home_stop_chk      = false; // samples the digital state of the HOME optical stop
+volatile boolean opticalHOME_stop_hit      = false; // true for 10ms when rising edge detected on HOME optical stop
+//boolean optical_emergency_stop_chk = false; // samples the digital state of the EMERGENCY optical stop
+volatile boolean opticalEMERGENCY_stop_hit = false; // true for 10ms when rising edge detected on EMERGENCY optical stop
+//boolean prev_opt_home_reading      = false; // state control variable for determining rising edge of HOME stop
+//boolean prev_opt_emergency_reading = false; // state control variable for determining rising edge of EMERGENCY stop
+//long opt_home_debounce_time             = 0;     // 10ms debounce timer that starts upon detection of rising edge of HOME stop
+//long opt_emergency_debounce_time        = 0;     // 10ms debounce timer that starts upon detection of rising edge of EMERGENCY stop
 
 // heartbeat vars
 TimeSlice StatusSlice(2000);       // heartbeat object
@@ -173,67 +175,35 @@ void checkSerial()
     index = 0;
     serialData[index] = '\0';
   }
-} // end void checkSerial()
+}
 
 
 
 
-/* *Function Name: void checkOpticalStops()
- * 
- * *Returns: None
- *
- * *Description:
- *  - Checks for a rising edge on either the HOME or EMERGENCY optical stops
- * 
- * **!TODO: Add emergency optical stop once hooked up!**
- * 
- */
-void checkOpticalStops()
+// interrupt function for optical HOME switch
+void homeOpticalStopInt()
 {
-  // pinOPTICALSTOP is HIGH if beam is broken
-  //optical_stop_chk = digitalRead(pinOPTICALSTOP); // slow
-  optical_home_stop_chk = (_SFR_IO8(0X03) & B10000000); // more performant
+  opticalHOME_stop_hit = true;
+  servoMotorEnable(MOTOR_DISABLED);
+}
 
-  // if statement checks for rising edge condition
-  // on optical_stop_chk (with a 10ms debounce)
-  if ((optical_home_stop_chk) && 
-      (prev_opt_home_reading != optical_home_stop_chk) && 
-      (millis() - opt_home_debounce_time >= 10))
-  {
-    optical_home_stop_hit = true;
-    ntSTATUS.setText("HOME STOP HIT");
-    if (DEBUG)
-    {
-      Serial.println("*OPTICAL HOME STOP HIT*");
-    }
-    opt_home_debounce_time = millis();
-  }
-
-  // reset the boolean that tracks optical beam state after
-  // 10ms (when optical endstop beam is broken this discrete
-  // will stay true for 10ms)
-  if (optical_home_stop_hit && (millis() - opt_home_debounce_time >= 10))
-  {
-    optical_home_stop_hit = false;
-  }
-
-  // if motor is enabled and the optical stop is hit
-  // turn off the motor
-  if (_motor_enable && optical_home_stop_hit)
-  {
-    servoMotorEnable(MOTOR_DISABLED);
-    if (DEBUG)
-    {
-      Serial.println("*STOP MOTOR DUE TO OPTICAL HOME STOP*");
-    }
-  } 
-
-  prev_opt_home_reading = optical_home_stop_chk;
-} // void checkOpticalStop()
+// interrupt
+void emergencyOpticalStopInt()
+{
+  opticalEMERGENCY_stop_hit = true;
+  servoMotorEnable(MOTOR_DISABLED);
+}
 
 
 
 
+/*
+* TODO: MAY NEED TO RE-THINK THIS.. NOT ALL MOTOR MOVEMENT
+*       FUNCTIONS TRACK start_counts AND total_counts, so 
+*       the IF condition of this function never gets entered
+*       and servoMotorReadQuadratureCount() spits out infinite
+*       debug text
+*/
 void ifMovingCheckCountFeedback()
 {
   quad = servoMotorReadQuadratureCount();
@@ -252,7 +222,7 @@ void ifMovingCheckCountFeedback()
       Serial.print("Count delta: "); Serial.println(abs(quad-start_counts));
     }
   }
-} // end void ifMovingCheckCountFeedback()
+}
 
 
 
@@ -270,6 +240,9 @@ void updateEnvironment()
   Serial.println(",}");
 }
 
+
+
+
 void updateDisplay()
 {
   // TODO: update the following parameters on the touch screen:
@@ -278,14 +251,19 @@ void updateDisplay()
   //   3-Air Pressure !not ready!
   //   4-State machine state !not ready!
   
-  char buffer_tq[10]; 
+  char buffer_tq[10];
+  char buffer_air[10]; 
   float tq = loadcellReadCurrentValue();
+  float air = readAirPressure();
   
   // decimal to string float (Arduino.h built-in)
   dtostrf(tq, 6, 2, buffer_tq);
+  dtostrf(air, 6, 2, buffer_air);
   // display current torque
-  ntTORQUE.setText(buffer_tq); 
+  ntTORQUE.setText(buffer_tq);
+  ntAIR.setText(buffer_air); 
 
+  // track the highest torque value achieved since reset
   if ( tq > highest_torque )
   {
     highest_torque = tq;
@@ -293,8 +271,8 @@ void updateDisplay()
     // display highest torque achieved in the current test 
     ntMAXTORQUE.setText(buffer_tq);
   }
-
 }
+
 
 
 
@@ -304,7 +282,22 @@ void setup()
   Serial2.begin(9600); // Serial2 is for Nextion communication
   delay(500); // allow serial to settle
 
+  pinMode(pinOPTICALHOME, INPUT);
+  attachInterrupt(digitalPinToInterrupt(pinOPTICALHOME), 
+                  homeOpticalStopInt,
+                  RISING);
+
+/* TODO: UNCOMMENT WHEN EMERGENCY STOP HOOKED UP
+  pinMode(pinOPTICALEMERGENCY, INPUT);
+  attachInterrupt(digitalPinToInterrupt(pinOPTICALEMERGENCY), 
+                  emergencyOpticalStopInt,
+                  RISING);
+*/
+
+  pinMode(DEBUG_PIN, INPUT_PULLUP);
+
   servoMotorSetup();
+  setupAirValve();
   // need to do setupEEPROM() before loadcellSetup()
   // because loadcellSetup() retrieves data from EEPROM
   // like scale_zero_bias and scale_calibration_factor
@@ -312,16 +305,12 @@ void setup()
   loadcellSetup();
   setupNextion();
 
-  pinMode(pinOPTICALHOME, INPUT);
-  pinMode(DEBUG_PIN, INPUT_PULLUP);
-  pinMode(RELAY_2_CTRL, OUTPUT);
-
-  digitalWrite(RELAY_2_CTRL, LOW);
-
-  // initialize heartbeat to 4 seconds
+  // initialize heartbeat and param update to touchscreen intervals
   StatusSlice.Interval(_heartbeat_interval);
   ParamSlice.Interval(_param_update_interval);
 }
+
+
 
 
 void loop() 
@@ -330,26 +319,31 @@ void loop()
   DEBUG = !(_SFR_MEM8(0x109) & B10000000);
 
   checkSerial();
-  checkOpticalStops();
-
   nexLoop(nex_listen_list);
 
-  if (motor_moving)
+  if ( motor_moving ) { ifMovingCheckCountFeedback(); }
+
+  if ( opticalHOME_stop_hit )
   {
-    ifMovingCheckCountFeedback(); 
+    //servoMotorEnable(MOTOR_DISABLED); // done in interrupt function
+    if ( DEBUG ) { Serial.println("*OPTICAL HOME STOP HIT*"); }
+    opticalHOME_stop_hit = false;
+  }
+
+  if ( opticalHOME_stop_hit )
+  {
+    //servoMotorEnable(MOTOR_DISABLED); // done in interrupt function
+    if ( DEBUG ) { Serial.println("*OPTICAL EMERGENCY STOP HIT*"); }
+    opticalEMERGENCY_stop_hit = false;
   }
 
 /* TODO: UNCOMMENT WHEN READY TO SHOW HEARTBEAT AGAIN
   hb_timer = millis();
-  if (StatusSlice.Triggered(hb_timer))
-  {
-    updateEnvironment(); // output heartbeat to serial
-  } 
+  if (StatusSlice.Triggered(hb_timer)) { updateEnvironment(); } // output heartbeat to serial 
 */
 
+  /* TODO: UNCOMMENT WHEN READY TO HAVE TOUCHSCREEN HOOKED UP
   param_timer = millis();
-  if (ParamSlice.Triggered(param_timer))
-  {
-    updateDisplay();
-  }
+  if (ParamSlice.Triggered(param_timer)) { updateDisplay(); }
+  */
 }
