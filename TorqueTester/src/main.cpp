@@ -108,6 +108,22 @@ MACHINESTATE _machine_state = IDLE;
 // **********************************
 void state0()
 {
+  /* STATE 0 (IDLE STATE)
+   *
+   * State 0 Description:
+   * This is the "Wait" state, entered upon machine initialization,
+   * when a test is completed, or when an unknown or cancel condition
+   * forces the test back to start.
+   * 
+   * State 0 Actions:
+   * Motor Disabled
+   * Results of previous test displayed (if any)
+   * Clamps manually OPENABLE (but cannot close!!!!)
+   * 
+   * State 0 Transition Criteria:
+   * S0->S1: User presses "START" button on page 0
+   * 
+   */
   _machine_state = IDLE;
   Serial.println("State 0 - IDLE STATE");
 }
@@ -132,6 +148,22 @@ bool transitionS0S1()
 // *********************************
 void state1()
 {
+  /* STATE 1 (HOME STATE)
+   *
+   * State 1 Description:
+   * In this state operator will be asked to manually home
+   * the motor assembly to the HOME position, once the metal
+   * rod on the motor assembly breaks the HOME optical stop
+   * the operator will be allowed to move forward to the next state
+   * 
+   * State 1 Actions:
+   * Motor enabled
+   * Motor Jog CW/CCW buttons become interactable
+   * 
+   * State 1 Transition Criteria:
+   * S1->S2: Motor is homed to HOME optical stop
+   * S1->S0: Operator presses Cancel button
+   */
   _machine_state = HOMEMTR;
   Serial.println("State 1 - HOME MOTOR STATE");
 }
@@ -155,6 +187,22 @@ bool transitionS1S2()
 // ********************************
 void state2()
 {
+  /* STATE 2 (LOADCLUB STATE)
+   *
+   * State 2 Description:
+   * In this state operator will be allowed to open AND close the
+   * clamps (state 0 operator could only OPEN clamp, not close). 
+   * When the clamps are open, PSI will be near 0. When the clamps
+   * are closed, PSI will be higher (somewhere between 70psi and 90psi)
+   * 
+   * State 2 Actions:
+   * Access to clamp relay is granted with the "CLOSE CAMP" button
+   * 
+   * State 2 Transition Criteria:
+   * S2->S3: PSI is somewhere within valid range
+   * S2->S0: Operator presses "CANCEL"
+   */
+  
   _machine_state = LOADCLUB;
   Serial.println("State 2 - LOAD CLUB STATE");
 }
@@ -178,6 +226,28 @@ bool transitionS2S3()
 // ************************************
 void state3()
 {
+  /* STATE 3 (READY STATE)
+   *
+   * State 3 Description:
+   * In state 2 operator pressed "CLOSE CLAMP" button and achieved
+   * a PSI value that is within the valid range (70psi to ~90psi).
+   * At this point in time the club is firmly clamped and the test
+   * is ready to begin. State 3 is essentially an "idle" state
+   * waiting for the operator to press the "START TEST" button on
+   * the "Page 2 - LoadClub" nextion display page to kick off the
+   * test officially
+   * 
+   * State 3 Actions:
+   * Reset all previous torque data (torque max value) to prepare
+   *  for the new upcoming test
+   * 
+   * State 3 Transition Criteria:
+   * S3->S4: Operator presses the "START TEST" button AND PSI is within
+   *         valid range
+   * S3->S0: Operator presses the CANCEL button
+   * 
+   */
+
   _machine_state = READY;
   Serial.println("State 3 - READY TO TEST STATE");
 }
@@ -201,6 +271,34 @@ bool transitionS3S4()
 // ***************************************
 void state4()
 {
+  /* STATE 4 (RUNNING STATE)
+   *
+   * State 4 Description:
+   * In this state the test is actually running. The motor
+   * will be rotating towards the club and applying a 
+   * torque force to the head of the club while the shaft is
+   * firmly clamped. The maximum value of the torque will be
+   * tracked and displayed on the screen in real-time. 
+   * 
+   * State 4 Actions:
+   * Motor enabled and rotating such that it applies a torque
+   *  force to the club head
+   * Highest achieved torque actively being tracked on screen
+   * 
+   * State 4 Transition Criteria:
+   * S4->S5 (pass): the club withstands an acceptable amount of torque,
+   *                the motor backs off a bit, and the nextion display
+   *                page moves to the final "Page 4 - FINISHED" page and
+   *                displays the test result (PASS) along with the highest
+   *                achieved torque value.
+   * S4->S5 (fail): the club breaks before achieving the maximum amount of
+   *                allowable torque and the motor continues moving until
+   *                it breaks the EMERGENCY optical stop. The nextion display
+   *                page is moved to "Page 4 - FINISHED" and displays the
+   *                test result (FAIL) and the highest achieved torque value.
+   *        S4->S0: Operator presses "CANCEL TEST" button.
+   */
+
   _machine_state = RUNNING;
   Serial.println("State 4 - TEST IN PROGRESS STATE");
 }
@@ -227,6 +325,25 @@ bool transitionS4S5()
 // ************************************
 void state5()
 {
+  /* STATE 5 (COMPLETE STATE)
+   *
+   * State 5 Description:
+   * By this point in the test 1 of 2 things have happend: either
+   * the motor assembly broke the head off the club (FAIL), or the club head
+   * withstood an acceptable amount of torque (PASS). The nextion display
+   * "Page 4 - Finished" will indicate the PASS/FAIL status of the test
+   * along with the highest achieved torque value. From here the operator can
+   * press the "Finish" button to return to "Page 0 - Main"
+   * 
+   * State 5 Actions:
+   * Display final maximum torque value achieved during test
+   * Display overall test status (PASS/FAIL)
+   * 
+   * State 5 Transition Criteria:
+   * S5->S0: Operator presses "FINISH" button
+   * 
+   */
+
   _machine_state = COMPLETE;
   Serial.println("State 5 - TEST COMPLETE STATE");
 }
@@ -477,7 +594,7 @@ void loop()
   checkSerial();
   nexLoop(nex_listen_list);
 
-  if ( motor_moving ) { ifMovingCheckCountFeedback(); }
+  //if ( motor_moving ) { ifMovingCheckCountFeedback(); }  // may be obsolete after state machine implementation
 
   if ( opticalHOME_stop_hit )
   {
@@ -486,7 +603,7 @@ void loop()
     opticalHOME_stop_hit = false;
   }
 
-  if ( opticalHOME_stop_hit )
+  if ( opticalEMERGENCY_stop_hit )
   {
     //servoMotorEnable(MOTOR_DISABLED); // done in interrupt function
     if ( DEBUG ) { Serial.println("*OPTICAL EMERGENCY STOP HIT*"); }
