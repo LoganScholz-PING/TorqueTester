@@ -80,11 +80,14 @@ extern boolean _motor_enable;
 
 
 /* === START NEX_DISPLAY.cpp EXTERNS === */
-extern NexText ntTORQUE;
-extern NexText ntAIR;
-extern NexText ntMAXTORQUE;
-extern NexText ntRESULT;
-extern NexText ntSTATUS;
+// all updateable text fields are below
+extern NexText ntCURRENTTORQUE_pg0;
+extern NexText ntMAXTORQUE_pg0;
+extern NexText ntSTATUS_pg0;
+extern NexText ntMAXTORQUE_pg3;
+extern NexText ntMAXTORQUE_pg4;
+extern NexText ntTESTRESULT_pg4;
+extern NexText ntCURRENTREADING_pg5;
 extern NexTouch *nex_listen_list[];
 /* ==== END NEX_DISPLAY.cpp EXTERNS ==== */
 
@@ -94,6 +97,10 @@ extern NexTouch *nex_listen_list[];
 /* ==== START STATE MACHINE DEFINITIONS ==== */
 StateMachine machine = StateMachine();
 
+// enumerations for tracking current machine state
+enum MACHINESTATE { IDLE = 0, HOMEMTR = 1, LOADCLUB = 2, READY = 3, RUNNING = 4, COMPLETE = 5, UNDEF = 99 };
+MACHINESTATE _machine_state = IDLE;
+
 // ========= State Functions =========
 
 // **********************************
@@ -101,6 +108,7 @@ StateMachine machine = StateMachine();
 // **********************************
 void state0()
 {
+  _machine_state = IDLE;
   Serial.println("State 0 - IDLE STATE");
 }
 
@@ -124,6 +132,7 @@ bool transitionS0S1()
 // *********************************
 void state1()
 {
+  _machine_state = HOMEMTR;
   Serial.println("State 1 - HOME MOTOR STATE");
 }
 
@@ -146,6 +155,7 @@ bool transitionS1S2()
 // ********************************
 void state2()
 {
+  _machine_state = LOADCLUB;
   Serial.println("State 2 - LOAD CLUB STATE");
 }
 
@@ -168,6 +178,7 @@ bool transitionS2S3()
 // ************************************
 void state3()
 {
+  _machine_state = READY;
   Serial.println("State 3 - READY TO TEST STATE");
 }
 
@@ -190,6 +201,7 @@ bool transitionS3S4()
 // ***************************************
 void state4()
 {
+  _machine_state = RUNNING;
   Serial.println("State 4 - TEST IN PROGRESS STATE");
 }
 
@@ -215,6 +227,7 @@ bool transitionS4S5()
 // ************************************
 void state5()
 {
+  _machine_state = COMPLETE;
   Serial.println("State 5 - TEST COMPLETE STATE");
 }
 
@@ -382,23 +395,15 @@ void updateEnvironment()
 
 void updateDisplay()
 {
-  // TODO: update the following parameters on the touch screen:
-  // 1-Torque *done*
-  // 2-Highest Torque *done*
-  //   3-Air Pressure !not ready!
-  //   4-State machine state !not ready!
-  
   char buffer_tq[10];
   char buffer_air[10]; 
   float tq = loadcellReadCurrentValue();
-  float air = readAirPressure();
   
   // decimal to string float (Arduino.h built-in)
   dtostrf(tq, 6, 2, buffer_tq);
-  dtostrf(air, 6, 2, buffer_air);
   // display current torque
-  ntTORQUE.setText(buffer_tq);
-  ntAIR.setText(buffer_air); 
+  ntCURRENTTORQUE_pg0.setText(buffer_tq);
+  ntCURRENTREADING_pg5.setText(buffer_tq);
 
   // track the highest torque value achieved since reset
   if ( tq > highest_torque )
@@ -406,7 +411,9 @@ void updateDisplay()
     highest_torque = tq;
     dtostrf(highest_torque, 6, 2, buffer_tq);
     // display highest torque achieved in the current test 
-    ntMAXTORQUE.setText(buffer_tq);
+    ntMAXTORQUE_pg0.setText(buffer_tq);
+    ntMAXTORQUE_pg3.setText(buffer_tq);
+    ntMAXTORQUE_pg4.setText(buffer_tq);
   }
 }
 
