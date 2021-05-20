@@ -56,7 +56,7 @@ volatile boolean opticalEMERGENCY_stop_hit = false; // true for 10ms when rising
 TimeSlice StatusSlice(2000);       // heartbeat object
 TimeSlice ParamSlice(100);
 long _heartbeat_interval    = 4000; // 4 second heartbeat
-long _param_update_interval = 200;  // refresh parameters on the touch screen every 200ms
+long _param_update_interval = 500;  // refresh parameters on the touch screen every 200ms
 //long _load_update_interval  = 50;   // read torque load every 50ms
 unsigned long hb_timer      = 0;    // holds the heartbeat timer in main loop
 unsigned long param_timer   = 0;    // holds the param timer in main loop
@@ -142,7 +142,8 @@ extern bool nbSAVESETTINGS_pg5_bool;
 StateMachine machine = StateMachine();
 
 // enumerations for tracking current machine state
-enum MACHINESTATE { IDLE = 0, HOMEMTR = 1, LOADCLUB = 2, READY = 3, RUNNING = 4, COMPLETE = 5, CALIBRATE = 6, UNDEF = 99 };
+enum MACHINESTATE { IDLE = 0, HOMEMTR = 1, LOADCLUB = 2, READY = 3, 
+                    RUNNING = 4, COMPLETE = 5, CALIBRATE = 6, UNDEF = 99 };
 MACHINESTATE _machine_state = IDLE;
 
 // ========= State Functions =========
@@ -166,7 +167,6 @@ void state0()
    * 
    * - State 0 Transition Criteria:
    * S0->S1: User presses "START" button on page 0
-   * 
    */
   _machine_state = IDLE;
 
@@ -183,23 +183,13 @@ void state0()
     npMAIN_PAGE.show();
   }
   
-
   if (nbOPENCLAMP_pg0_bool)
   {
     digitalWrite(CLAMP_PIN, false);
     nbOPENCLAMP_pg0_bool = false;
   }
-
-  //Serial.println("State 0 - IDLE STATE");
 }
 
-/* DO WE NEED THIS????
-// generic transition to State 0
-bool transitionS0()
-{
-  return true;
-}
-*/
 
 // State0 -> State1 transition criteria
 bool transitionS0S1()
@@ -260,7 +250,6 @@ void state1()
 
   // ***** TODO: Motor Jog CW/CCW & Motor Stop *****
 
-  //Serial.println("State 1 - HOME MOTOR STATE");
 }
 
 // State1 -> State0 transition criteria
@@ -272,7 +261,6 @@ bool transitionS1S0()
     nbCANCEL_pg1_bool = false;
     return true;
   }
-
   return false;
 }
 
@@ -284,7 +272,6 @@ bool transitionS1S2()
     opticalHOME_stop_hit = false;
     return true;
   }
-  
   return false;
 }
 
@@ -332,8 +319,6 @@ void state2()
     digitalWrite(CLAMP_PIN, true);
     nbCLOSECLAMP_pg2_bool = false;
   }
-  
-  //Serial.println("State 2 - LOAD CLUB STATE");
 }
 
 // State2 -> State0 transition criteria
@@ -345,7 +330,6 @@ bool transitionS2S0()
     nbCANCEL_pg2_bool = false;
     return true;
   }
-  
   return false;
 }
 
@@ -359,7 +343,6 @@ bool transitionS2S3()
   {
     return true;
   }
-  
   return false;
 }
 
@@ -396,9 +379,9 @@ void state3()
   if ( machine.executeOnce )
   {
     highest_torque = 0;
-    ntMAXTORQUE_pg0.setText("NONE");
-    ntMAXTORQUE_pg3.setText("NONE");
-    ntMAXTORQUE_pg4.setText("NONE");
+    //ntMAXTORQUE_pg0.setText("NONE");
+    //ntMAXTORQUE_pg3.setText("NONE");  // can't change text on pages that
+    //ntMAXTORQUE_pg4.setText("NONE");  // aren't active
 
     nbCANCEL_pg2_bool = false;
     nbSTARTTEST_pg2_bool = false;
@@ -406,7 +389,7 @@ void state3()
     nbCLOSECLAMP_pg2_bool = false;
   }
 
-  //Serial.println("State 3 - READY TO TEST STATE");
+
 }
 
 // State3 -> State0 transition criteria
@@ -418,7 +401,6 @@ bool transitionS3S0()
     nbCANCEL_pg2_bool = false;
     return true;
   }
-
   return false; // false for testing
 }
 
@@ -432,7 +414,6 @@ bool transitionS3S4()
     nbSTARTTEST_pg2_bool = false;
     return true;
   }
-  
   return false;
 }
 
@@ -481,8 +462,6 @@ void state4()
   }
 
   
-
-  //Serial.println("State 4 - TEST IN PROGRESS STATE");
 }
 
 // State4 -> State0 transition criteria
@@ -564,7 +543,6 @@ void state5()
     ntMAXTORQUE_pg4.setText(buffer_tq);
   }
 
-  //Serial.println("State 5 - TEST COMPLETE STATE");
 }
 
 // State5 -> State0 transition criteria
@@ -575,7 +553,6 @@ bool transitionS5S0()
     nbFINISH_pg4_bool = false;
     return true;
   }
-
   return false;
 }
 
@@ -606,6 +583,8 @@ void state6()
   if ( machine.executeOnce )
   {
     servoMotorEnable(MOTOR_DISABLED);
+
+    highest_torque = 0;
     
     nbTARE_pg5_bool = false;
     nbPLUS1000_pg5_bool = false;
@@ -685,7 +664,6 @@ bool transitionS6S0()
     nbENDCAL_pg5_bool = false;
     return true;
   }
-
   return false;
 }
 
@@ -875,7 +853,6 @@ void setup()
   StatusSlice.Interval(_heartbeat_interval);
   ParamSlice.Interval(_param_update_interval);
 
-  //S0->addTransition(&transitionS0, S0); // idk if this is needed
   S0->addTransition(&transitionS0S1, S1); // IDLE to HOME MOTOR
   S0->addTransition(&transitionS0S6, S6); // IDLE to CALIBRATE LOAD CELL
   S1->addTransition(&transitionS1S0, S0); // HOME MOTOR to IDLE
@@ -896,10 +873,11 @@ void setup()
 void loop() 
 {
   // read debug pin 42 state
-  DEBUG = !(_SFR_MEM8(0x109) & B10000000);
+  //DEBUG = !(_SFR_MEM8(0x109) & B10000000);
 
   //checkSerial();
   
+  /*
   if ( opticalHOME_stop_hit )
   {
     Serial.println("*OPTICAL HOME STOP HIT*");
@@ -909,18 +887,20 @@ void loop()
   {
     Serial.println("*OPTICAL EMERGENCY STOP HIT*");
   }
+  */
   
 /* TODO: UNCOMMENT WHEN READY TO SHOW HEARTBEAT AGAIN */
 /*
   hb_timer = millis();
   if (StatusSlice.Triggered(hb_timer)) { updateEnvironment(); } // output heartbeat to serial 
 */
+  
+  nexLoop(nex_listen_list);
+  
   /* TODO: UNCOMMENT WHEN READY TO HAVE TOUCHSCREEN HOOKED UP */
   param_timer = millis();
   if (ParamSlice.Triggered(param_timer)) { updateDisplay(); }
   
-  nexLoop(nex_listen_list);
-
   machine.run();
   //delay(1000); // may need this delay if loop is too fast for state machine
 }
