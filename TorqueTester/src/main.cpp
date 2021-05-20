@@ -56,8 +56,8 @@ volatile boolean opticalEMERGENCY_stop_hit = false; // true for 10ms when rising
 TimeSlice StatusSlice(2000);       // heartbeat object
 TimeSlice ParamSlice(100);
 long _heartbeat_interval    = 4000; // 4 second heartbeat
-long _param_update_interval = 500;  // refresh parameters on the touch screen every 100ms
-long _load_update_interval  = 50;   // read torque load every 50ms
+long _param_update_interval = 200;  // refresh parameters on the touch screen every 200ms
+//long _load_update_interval  = 50;   // read torque load every 50ms
 unsigned long hb_timer      = 0;    // holds the heartbeat timer in main loop
 unsigned long param_timer   = 0;    // holds the param timer in main loop
 
@@ -71,12 +71,21 @@ long quad            = 0;      // for tracking motor movement
 double start_counts  = 0;      // for tracking motor movement
 double total_counts  = 0;      // for tracking motor movement
 boolean motor_moving = false;  // for tracking if motor is moving
+
+boolean OVERALL_TEST_PASS = false;
 /* ==== END PROGRAM FLOW CONTROL VARIABLES ==== */
 
 
 /* === START ServoMotorControl.cpp EXTERNS === */
 extern boolean _motor_enable;
 /* ==== END ServoMotorControl.cpp EXTERNS ==== */
+
+
+/* === START LoadCell.cpp EXTERNS === */
+extern float scale_calibration_factor;
+extern long  scale_zero_bias;
+extern float scale_calibration_load;
+/* ==== END LoadCell.cpp EXTERNS ==== */
 
 
 /* === START NEX_DISPLAY.cpp EXTERNS === */
@@ -88,9 +97,44 @@ extern NexText ntMAXTORQUE_pg3;
 extern NexText ntMAXTORQUE_pg4;
 extern NexText ntTESTRESULT_pg4;
 extern NexText ntCURRENTREADING_pg5;
-extern NexTouch *nex_listen_list[];
-/* ==== END NEX_DISPLAY.cpp EXTERNS ==== */
 
+// all pages are below
+extern NexPage npMAIN_PAGE;
+extern NexPage npHOMEMTR_PAGE;
+extern NexPage npLOADCLUB_PAGE;
+extern NexPage npTESTGOGOGO_PAGE;
+extern NexPage npFINISHED_PAGE;
+extern NexPage npCALIBRATE_PAGE;
+
+// button listen list below
+extern NexTouch *nex_listen_list[];
+
+// these track if a button has been pressed on a page
+// because i don't know how to do this any better right now
+extern bool nbSTARTTEST_pg0_bool;
+extern bool nbOPENCLAMP_pg0_bool;
+extern bool nbCALIBRATE_pg0_bool;
+extern bool nbTARE_pg0_bool;
+extern bool nbMOVECW_pg1_bool;
+extern bool nbCANCEL_pg1_bool;
+extern bool nbMOVECCW_pg1_bool;
+extern bool nbSTOPMOTOR_pg1_bool;
+extern bool nbOPENCLAMP_pg2_bool;
+extern bool nbSTARTTEST_pg2_bool;
+extern bool nbCANCEL_pg2_bool;
+extern bool nbCLOSECLAMP_pg2_bool;
+extern bool nbCANCEL_pg3_bool;
+extern bool nbFINISH_pg4_bool;
+extern bool nbTARE_pg5_bool;
+extern bool nbPLUS1000_pg5_bool;
+extern bool nbPLUS100_pg5_bool;
+extern bool nbPLUS10_pg5_bool;
+extern bool nbMINUS1000_pg5_bool;
+extern bool nbMINUS100_pg5_bool;
+extern bool nbMINUS10_pg5_bool;
+extern bool nbENDCAL_pg5_bool;
+extern bool nbSAVESETTINGS_pg5_bool;
+/* ==== END NEX_DISPLAY.cpp EXTERNS ==== */
 
 
 
@@ -98,7 +142,7 @@ extern NexTouch *nex_listen_list[];
 StateMachine machine = StateMachine();
 
 // enumerations for tracking current machine state
-enum MACHINESTATE { IDLE = 0, HOMEMTR = 1, LOADCLUB = 2, READY = 3, RUNNING = 4, COMPLETE = 5, UNDEF = 99 };
+enum MACHINESTATE { IDLE = 0, HOMEMTR = 1, LOADCLUB = 2, READY = 3, RUNNING = 4, COMPLETE = 5, CALIBRATE = 6, UNDEF = 99 };
 MACHINESTATE _machine_state = IDLE;
 
 // ========= State Functions =========
@@ -110,22 +154,43 @@ void state0()
 {
   /* STATE 0 (IDLE STATE)
    *
-   * State 0 Description:
+   * - State 0 Description:
    * This is the "Wait" state, entered upon machine initialization,
    * when a test is completed, or when an unknown or cancel condition
    * forces the test back to start.
    * 
-   * State 0 Actions:
+   * - State 0 Actions:
    * Motor Disabled
    * Results of previous test displayed (if any)
    * Clamps manually OPENABLE (but cannot close!!!!)
    * 
-   * State 0 Transition Criteria:
+   * - State 0 Transition Criteria:
    * S0->S1: User presses "START" button on page 0
    * 
    */
   _machine_state = IDLE;
-  Serial.println("State 0 - IDLE STATE");
+
+  if(machine.executeOnce)
+  {
+    servoMotorEnable(MOTOR_DISABLED);
+    nbSTARTTEST_pg0_bool = false;
+    nbOPENCLAMP_pg0_bool = false;
+    nbCALIBRATE_pg0_bool = false;
+    nbTARE_pg0_bool = false;
+
+    OVERALL_TEST_PASS = false;
+
+    npMAIN_PAGE.show();
+  }
+  
+
+  if (nbOPENCLAMP_pg0_bool)
+  {
+    digitalWrite(CLAMP_PIN, false);
+    nbOPENCLAMP_pg0_bool = false;
+  }
+
+  //Serial.println("State 0 - IDLE STATE");
 }
 
 /* DO WE NEED THIS????
@@ -139,7 +204,24 @@ bool transitionS0()
 // State0 -> State1 transition criteria
 bool transitionS0S1()
 {
-  return true;
+  if (nbSTARTTEST_pg0_bool)
+  {
+    // operator pressed "START TEST" button on page 0
+    nbSTARTTEST_pg0_bool = false;
+    return true;
+  }
+  return false;
+}
+
+// State0 -> State6 transition criteria
+bool transitionS0S6()
+{
+  if (nbCALIBRATE_pg0_bool)
+  {
+    nbCALIBRATE_pg0_bool = false;
+    return true;
+  }
+  return false;
 }
 
 
@@ -150,35 +232,60 @@ void state1()
 {
   /* STATE 1 (HOME STATE)
    *
-   * State 1 Description:
+   * - State 1 Description:
    * In this state operator will be asked to manually home
    * the motor assembly to the HOME position, once the metal
    * rod on the motor assembly breaks the HOME optical stop
    * the operator will be allowed to move forward to the next state
    * 
-   * State 1 Actions:
+   * - State 1 Actions:
    * Motor enabled
    * Motor Jog CW/CCW buttons become interactable
    * 
-   * State 1 Transition Criteria:
+   * - State 1 Transition Criteria:
    * S1->S2: Motor is homed to HOME optical stop
    * S1->S0: Operator presses Cancel button
    */
   _machine_state = HOMEMTR;
-  Serial.println("State 1 - HOME MOTOR STATE");
+
+  if (machine.executeOnce)
+  {
+    nbMOVECW_pg1_bool = false;
+    nbMOVECCW_pg1_bool = false;
+    nbCANCEL_pg1_bool = false;
+    nbSTOPMOTOR_pg1_bool = false;
+    opticalHOME_stop_hit = false; // just in case the optical stop was broken beforehand
+    npHOMEMTR_PAGE.show();
+  }
+
+  // ***** TODO: Motor Jog CW/CCW & Motor Stop *****
+
+  //Serial.println("State 1 - HOME MOTOR STATE");
 }
 
 // State1 -> State0 transition criteria
 bool transitionS1S0()
 { 
   // operator pressed cancel in State1
-  return false; // false for testing
+  if (nbCANCEL_pg1_bool)
+  {
+    nbCANCEL_pg1_bool = false;
+    return true;
+  }
+
+  return false;
 }
 
 // State1 -> State2 transition criteria
 bool transitionS1S2()
 { 
-  return true;
+  if (opticalHOME_stop_hit)
+  {
+    opticalHOME_stop_hit = false;
+    return true;
+  }
+  
+  return false;
 }
 
 
@@ -189,35 +296,71 @@ void state2()
 {
   /* STATE 2 (LOADCLUB STATE)
    *
-   * State 2 Description:
+   * - State 2 Description:
    * In this state operator will be allowed to open AND close the
    * clamps (state 0 operator could only OPEN clamp, not close). 
    * When the clamps are open, PSI will be near 0. When the clamps
    * are closed, PSI will be higher (somewhere between 70psi and 90psi)
    * 
-   * State 2 Actions:
+   * - State 2 Actions:
    * Access to clamp relay is granted with the "CLOSE CAMP" button
    * 
-   * State 2 Transition Criteria:
+   * - State 2 Transition Criteria:
    * S2->S3: PSI is somewhere within valid range
    * S2->S0: Operator presses "CANCEL"
    */
   
   _machine_state = LOADCLUB;
-  Serial.println("State 2 - LOAD CLUB STATE");
+
+  if ( machine.executeOnce )
+  {
+    nbCANCEL_pg2_bool = false;
+    nbSTARTTEST_pg2_bool = false;
+    nbOPENCLAMP_pg2_bool = false;
+    nbCLOSECLAMP_pg2_bool = false;
+    npLOADCLUB_PAGE.show();
+  }
+
+  if ( nbOPENCLAMP_pg2_bool )
+  {
+    digitalWrite(CLAMP_PIN, false);
+    nbOPENCLAMP_pg2_bool = false;
+  }
+
+  if ( nbCLOSECLAMP_pg2_bool )
+  {
+    digitalWrite(CLAMP_PIN, true);
+    nbCLOSECLAMP_pg2_bool = false;
+  }
+  
+  //Serial.println("State 2 - LOAD CLUB STATE");
 }
 
 // State2 -> State0 transition criteria
 bool transitionS2S0()
 { 
   // operator pressed cancel in State2
-  return false; // false for testing
+  if (nbCANCEL_pg2_bool)
+  {
+    nbCANCEL_pg2_bool = false;
+    return true;
+  }
+  
+  return false;
 }
 
 // State2 -> State3 transition criteria
 bool transitionS2S3()
 { 
-  return true;
+  float air = readAirPressure();
+
+  // clamp is engaged if air pressure >= 70psi
+  if ( air >= 70 )
+  {
+    return true;
+  }
+  
+  return false;
 }
 
 
@@ -228,7 +371,7 @@ void state3()
 {
   /* STATE 3 (READY STATE)
    *
-   * State 3 Description:
+   * - State 3 Description:
    * In state 2 operator pressed "CLOSE CLAMP" button and achieved
    * a PSI value that is within the valid range (70psi to ~90psi).
    * At this point in time the club is firmly clamped and the test
@@ -237,11 +380,11 @@ void state3()
    * the "Page 2 - LoadClub" nextion display page to kick off the
    * test officially
    * 
-   * State 3 Actions:
+   * - State 3 Actions:
    * Reset all previous torque data (torque max value) to prepare
    *  for the new upcoming test
    * 
-   * State 3 Transition Criteria:
+   * - State 3 Transition Criteria:
    * S3->S4: Operator presses the "START TEST" button AND PSI is within
    *         valid range
    * S3->S0: Operator presses the CANCEL button
@@ -249,20 +392,48 @@ void state3()
    */
 
   _machine_state = READY;
-  Serial.println("State 3 - READY TO TEST STATE");
+
+  if ( machine.executeOnce )
+  {
+    highest_torque = 0;
+    ntMAXTORQUE_pg0.setText("NONE");
+    ntMAXTORQUE_pg3.setText("NONE");
+    ntMAXTORQUE_pg4.setText("NONE");
+
+    nbCANCEL_pg2_bool = false;
+    nbSTARTTEST_pg2_bool = false;
+    nbOPENCLAMP_pg2_bool = false;
+    nbCLOSECLAMP_pg2_bool = false;
+  }
+
+  //Serial.println("State 3 - READY TO TEST STATE");
 }
 
 // State3 -> State0 transition criteria
 bool transitionS3S0()
 { 
   // operator pressed cancel in State3
+  if (nbCANCEL_pg2_bool)
+  {
+    nbCANCEL_pg2_bool = false;
+    return true;
+  }
+
   return false; // false for testing
 }
 
 // State3 -> State4 transition criteria
 bool transitionS3S4()
 { 
-  return true;
+  float air = readAirPressure();
+
+  if ( (air >= 70) && (nbSTARTTEST_pg2_bool) )
+  {
+    nbSTARTTEST_pg2_bool = false;
+    return true;
+  }
+  
+  return false;
 }
 
 
@@ -273,19 +444,19 @@ void state4()
 {
   /* STATE 4 (RUNNING STATE)
    *
-   * State 4 Description:
+   * - State 4 Description:
    * In this state the test is actually running. The motor
    * will be rotating towards the club and applying a 
    * torque force to the head of the club while the shaft is
    * firmly clamped. The maximum value of the torque will be
    * tracked and displayed on the screen in real-time. 
    * 
-   * State 4 Actions:
+   * - State 4 Actions:
    * Motor enabled and rotating such that it applies a torque
    *  force to the club head
    * Highest achieved torque actively being tracked on screen
    * 
-   * State 4 Transition Criteria:
+   * - State 4 Transition Criteria:
    * S4->S5 (pass): the club withstands an acceptable amount of torque,
    *                the motor backs off a bit, and the nextion display
    *                page moves to the final "Page 4 - FINISHED" page and
@@ -300,13 +471,29 @@ void state4()
    */
 
   _machine_state = RUNNING;
-  Serial.println("State 4 - TEST IN PROGRESS STATE");
+
+  if ( machine.executeOnce )
+  {
+    nbCANCEL_pg3_bool = false;
+    opticalEMERGENCY_stop_hit = false;
+
+    npTESTGOGOGO_PAGE.show();
+  }
+
+  
+
+  //Serial.println("State 4 - TEST IN PROGRESS STATE");
 }
 
 // State4 -> State0 transition criteria
 bool transitionS4S0()
 { 
   // Operator pressed CANCEL during test
+  if ( nbCANCEL_pg3_bool )
+  {
+    nbCANCEL_pg3_bool = false;
+    return true;
+  }
   return false; // false for testing
 }
 
@@ -316,7 +503,14 @@ bool transitionS4S5()
   // 2 conditions can transition you from S4 to S5 (in order of importance)
   //   1. Emergency optical endstop activated (club broke and failed torque test)
   //   2. Expected torque value achieved (club passed torque test) 
-  return true;
+  //float tq = loadcellReadCurrentValue();
+
+  // TODO: IF STATEMENT TO CHECK TORQUE VALUE + E-STOP BOOLEAN
+  // if torque value >= acceptable torque value, OVERALL_TEST_PASS = TRUE
+  // if E-STOP boolean TRUE then club broke, OVERALL_TEST_PASS = FALSE
+  // NOTE: In either condition, immediately do servoMotorEnable(MOTOR_DISABLED);
+
+  return false;
 }
 
 
@@ -327,7 +521,7 @@ void state5()
 {
   /* STATE 5 (COMPLETE STATE)
    *
-   * State 5 Description:
+   * - State 5 Description:
    * By this point in the test 1 of 2 things have happend: either
    * the motor assembly broke the head off the club (FAIL), or the club head
    * withstood an acceptable amount of torque (PASS). The nextion display
@@ -335,27 +529,164 @@ void state5()
    * along with the highest achieved torque value. From here the operator can
    * press the "Finish" button to return to "Page 0 - Main"
    * 
-   * State 5 Actions:
+   * - State 5 Actions:
    * Display final maximum torque value achieved during test
    * Display overall test status (PASS/FAIL)
    * 
-   * State 5 Transition Criteria:
+   * - State 5 Transition Criteria:
    * S5->S0: Operator presses "FINISH" button
    * 
    */
 
   _machine_state = COMPLETE;
-  Serial.println("State 5 - TEST COMPLETE STATE");
+
+  if ( machine.executeOnce )
+  {
+    servoMotorEnable(MOTOR_DISABLED);
+    nbFINISH_pg4_bool = false;
+
+    npFINISHED_PAGE.show();
+
+    if (OVERALL_TEST_PASS)
+    {
+      ntTESTRESULT_pg4.setText("PASS");
+    } 
+    else
+    {
+      ntTESTRESULT_pg4.setText("FAIL");
+    }
+
+    char buffer_tq[10];
+    dtostrf(highest_torque, 6, 2, buffer_tq);
+    // display highest torque achieved in the current test 
+    ntMAXTORQUE_pg0.setText(buffer_tq);
+    ntMAXTORQUE_pg3.setText(buffer_tq);
+    ntMAXTORQUE_pg4.setText(buffer_tq);
+  }
+
+  //Serial.println("State 5 - TEST COMPLETE STATE");
 }
 
 // State5 -> State0 transition criteria
 bool transitionS5S0()
 { 
-  // 3 things happen in this state:
-  //  1. Test results are displayed (largest torque value achieved)
-  //  2. Test status is displayed (PASS/FAIL)
-  //  3. A continue button is displayed to take user back to State0
-  return true;
+  if (nbFINISH_pg4_bool)
+  {
+    nbFINISH_pg4_bool = false;
+    return true;
+  }
+
+  return false;
+}
+
+
+// ************************************
+// **** STATE6 CALIBRATION STATE ****
+// ************************************
+void state6()
+{
+  /* STATE 6 (CALIBRATION STATE)
+   *
+   * - State 6 Description:
+   *   This state is designed to allow the operator to calibrate the load cell
+   *   (with a calibrated weight attached to the load cell)
+   * 
+   * - State 6 Actions:
+   *   User can use the +/- buttons to modify the calibration factor until the 
+   *    force reported by the load cell matches the calibrated weight attached
+   *    to the load cell
+   *   User can tare the load cell as well here
+   * 
+   * - State 6 Transition Criteria:
+   *   S6->S0: Operator presses "END CAL" button
+   */
+
+  _machine_state = CALIBRATE;
+
+  if ( machine.executeOnce )
+  {
+    servoMotorEnable(MOTOR_DISABLED);
+    
+    nbTARE_pg5_bool = false;
+    nbPLUS1000_pg5_bool = false;
+    nbPLUS100_pg5_bool = false;
+    nbPLUS10_pg5_bool = false;
+    nbMINUS1000_pg5_bool = false;
+    nbMINUS100_pg5_bool = false;
+    nbMINUS10_pg5_bool = false;
+    nbENDCAL_pg5_bool = false;
+    nbSAVESETTINGS_pg5_bool = false;
+
+    npCALIBRATE_PAGE.show();
+  }
+
+  if ( nbSAVESETTINGS_pg5_bool )
+  {
+    WriteEEPROM(true);
+    nbSAVESETTINGS_pg5_bool = false;
+  }
+
+  if ( nbTARE_pg5_bool )
+  {
+    loadcellTare();
+    nbTARE_pg5_bool = false;
+  }
+
+  if ( nbPLUS1000_pg5_bool )
+  {
+    nbPLUS1000_pg5_bool = false;
+    scale_calibration_factor += 1000;
+    loadcellSetCalibrationFactor(scale_calibration_factor);
+  }
+
+  if ( nbPLUS100_pg5_bool )
+  {
+    nbPLUS100_pg5_bool = false;
+    scale_calibration_factor += 100;
+    loadcellSetCalibrationFactor(scale_calibration_factor);
+  }
+
+  if ( nbPLUS10_pg5_bool )
+  {
+    nbPLUS10_pg5_bool = false;
+    scale_calibration_factor += 10;
+    loadcellSetCalibrationFactor(scale_calibration_factor);
+  }
+
+  if ( nbMINUS1000_pg5_bool )
+  {
+    nbMINUS1000_pg5_bool = false;
+    scale_calibration_factor -= 1000;
+    loadcellSetCalibrationFactor(scale_calibration_factor);
+  }
+
+  if ( nbMINUS100_pg5_bool )
+  {
+    nbMINUS100_pg5_bool = false;
+    scale_calibration_factor -= 100;
+    loadcellSetCalibrationFactor(scale_calibration_factor);
+  }
+
+  if ( nbMINUS10_pg5_bool )
+  {
+    nbMINUS10_pg5_bool = false;
+    scale_calibration_factor -= 10;
+    loadcellSetCalibrationFactor(scale_calibration_factor);
+  }
+
+  //Serial.println("State 6 - LOAD CELL CALIBRATION STATE");
+}
+
+// State6 -> State0 transition criteria
+bool transitionS6S0()
+{ 
+  if (nbENDCAL_pg5_bool)
+  {
+    nbENDCAL_pg5_bool = false;
+    return true;
+  }
+
+  return false;
 }
 
 State* S0 = machine.addState(&state0);
@@ -364,6 +695,7 @@ State* S2 = machine.addState(&state2);
 State* S3 = machine.addState(&state3);
 State* S4 = machine.addState(&state4);
 State* S5 = machine.addState(&state5);
+State* S6 = machine.addState(&state6);
 
 /* ===== END STATE MACHINE DEFINITIONS ===== */
 
@@ -383,6 +715,8 @@ State* S5 = machine.addState(&state5);
  *  - inspects incoming serial data for "packetized" data. A proper 
  *    serial data packet starts with an '<' and ends with an '>'
  */
+
+/*
 void checkSerial()
 {
   // if serial is available, receive the
@@ -444,7 +778,7 @@ void checkSerial()
   }
 }
 
-
+*/
 
 
 // interrupt function for optical HOME switch
@@ -464,46 +798,18 @@ void emergencyOpticalStopInt()
 
 
 
-/*
-* TODO: MAY NEED TO RE-THINK THIS.. NOT ALL MOTOR MOVEMENT
-*       FUNCTIONS TRACK start_counts AND total_counts, so 
-*       the IF condition of this function never gets entered
-*       and servoMotorReadQuadratureCount() spits out infinite
-*       debug text
-*/
-void ifMovingCheckCountFeedback()
-{
-  quad = servoMotorReadQuadratureCount();
-  // TODO: need to initialize start_counts and total_counts
-  //       when motor movement begins
-  if ( (abs(quad-start_counts) >= abs(total_counts)) )
-  {   
-    servoMotorEnable(MOTOR_DISABLED);
-    motor_moving = false;
-    if (DEBUG)
-    {
-      Serial.println("Main loop has stopped motor movement"); 
-      Serial.print("total_counts: "); Serial.println(total_counts);
-      Serial.print("start_counts: "); Serial.println(start_counts);
-      Serial.print("End counts (quad): "); Serial.println(abs(quad));
-      Serial.print("Count delta: "); Serial.println(abs(quad-start_counts));
-    }
-  }
-}
-
-
-
-
 void updateEnvironment()
 {
   //char* cp; // for tracking state machine current state, not implemented
   //double pos = servoMotorReadRotationAngle(); // doesn't work yet
   float tq = loadcellReadCurrentValue();
+  float air = readAirPressure();
 
   Serial.print("{,");
   Serial.print(":T="); Serial.print(tq);
-  //Serial.print(":A="); Serial.print(pos);
+  Serial.print(":A="); Serial.print(air);
   Serial.print(":MTR="); Serial.print(motor_moving);
+  Serial.print(":SM="); Serial.print(_machine_state);
   Serial.println(",}");
 }
 
@@ -512,8 +818,7 @@ void updateEnvironment()
 
 void updateDisplay()
 {
-  char buffer_tq[10];
-  char buffer_air[10]; 
+  char buffer_tq[10]; 
   float tq = loadcellReadCurrentValue();
   
   // decimal to string float (Arduino.h built-in)
@@ -572,6 +877,7 @@ void setup()
 
   //S0->addTransition(&transitionS0, S0); // idk if this is needed
   S0->addTransition(&transitionS0S1, S1); // IDLE to HOME MOTOR
+  S0->addTransition(&transitionS0S6, S6); // IDLE to CALIBRATE LOAD CELL
   S1->addTransition(&transitionS1S0, S0); // HOME MOTOR to IDLE
   S1->addTransition(&transitionS1S2, S2); // HOME MOTOR to LOAD CLUB
   S2->addTransition(&transitionS2S0, S0); // LOAD CLUB to IDLE
@@ -581,6 +887,7 @@ void setup()
   S4->addTransition(&transitionS4S0, S0); // TEST RUNNING to IDLE
   S4->addTransition(&transitionS4S5, S5); // TEST RUNNING to TEST FINISHED
   S5->addTransition(&transitionS5S0, S0); // TEST FINISHED to IDLE
+  S6->addTransition(&transitionS6S0, S0); // CALIBRATION to IDLE
 }
 
 
@@ -591,34 +898,28 @@ void loop()
   // read debug pin 42 state
   DEBUG = !(_SFR_MEM8(0x109) & B10000000);
 
-  checkSerial();
-  nexLoop(nex_listen_list);
-
-  //if ( motor_moving ) { ifMovingCheckCountFeedback(); }  // may be obsolete after state machine implementation
-
+  //checkSerial();
+  
   if ( opticalHOME_stop_hit )
   {
-    //servoMotorEnable(MOTOR_DISABLED); // done in interrupt function
-    if ( DEBUG ) { Serial.println("*OPTICAL HOME STOP HIT*"); }
-    opticalHOME_stop_hit = false;
+    Serial.println("*OPTICAL HOME STOP HIT*");
   }
-
+  
   if ( opticalEMERGENCY_stop_hit )
   {
-    //servoMotorEnable(MOTOR_DISABLED); // done in interrupt function
-    if ( DEBUG ) { Serial.println("*OPTICAL EMERGENCY STOP HIT*"); }
-    opticalEMERGENCY_stop_hit = false;
+    Serial.println("*OPTICAL EMERGENCY STOP HIT*");
   }
-
-/* TODO: UNCOMMENT WHEN READY TO SHOW HEARTBEAT AGAIN
+  
+/* TODO: UNCOMMENT WHEN READY TO SHOW HEARTBEAT AGAIN */
+/*
   hb_timer = millis();
   if (StatusSlice.Triggered(hb_timer)) { updateEnvironment(); } // output heartbeat to serial 
 */
-
-  /* TODO: UNCOMMENT WHEN READY TO HAVE TOUCHSCREEN HOOKED UP
+  /* TODO: UNCOMMENT WHEN READY TO HAVE TOUCHSCREEN HOOKED UP */
   param_timer = millis();
   if (ParamSlice.Triggered(param_timer)) { updateDisplay(); }
-  */
+  
+  nexLoop(nex_listen_list);
 
   machine.run();
   //delay(1000); // may need this delay if loop is too fast for state machine
