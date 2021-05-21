@@ -81,7 +81,7 @@ void servoMotorAdjustSpeed(unsigned long nw)
 }
 
 
-void runMotor(int cmd)
+void runMotor(int cmd, float f)
 {
   if (cmd == 1)
   {
@@ -91,7 +91,7 @@ void runMotor(int cmd)
         Serial.println("Running Motor");
     }
     
-    servoMotorFrequency(0.001);   
+    servoMotorFrequency(f);   
     servoMotorEnable(MOTOR_ENABLED);
     
     if (DEBUG)

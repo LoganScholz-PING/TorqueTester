@@ -29,7 +29,7 @@ void servoMotorFrequency(float f);
 void servoMotorSTOP();
 int servoMotorMoveDegrees(int deg);
 
-void runMotor(int cmd);
+void runMotor(int cmd, float f = 0.01);
 /* === END SERVO MOTOR FUNCTION PROTOTYPES === */
 
 /* === START QUADRATURE FUNCTION PROTOTYPES === */

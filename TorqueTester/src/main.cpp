@@ -28,6 +28,8 @@
 #define pinOPTICALHOME 20 // PB7
 //#define pinOPTICALEMERGENCY 19 // NOT ATTACHED YET
 
+#define pinESTOP 18 // LOW->HIGH transition when E-STOP activated
+
 #define DEBUG_PIN 42      // PL7
 boolean DEBUG = false;
 /* === END PROGRAM SPECIFIC DEFINES === */
@@ -168,10 +170,11 @@ void state0()
    * - State 0 Transition Criteria:
    * S0->S1: User presses "START" button on page 0
    */
-  _machine_state = IDLE;
+  
 
   if(machine.executeOnce)
   {
+    _machine_state = IDLE;
     servoMotorEnable(MOTOR_DISABLED);
     nbSTARTTEST_pg0_bool = false;
     nbOPENCLAMP_pg0_bool = false;
@@ -236,10 +239,11 @@ void state1()
    * S1->S2: Motor is homed to HOME optical stop
    * S1->S0: Operator presses Cancel button
    */
-  _machine_state = HOMEMTR;
+  
 
   if (machine.executeOnce)
   {
+    _machine_state = HOMEMTR;
     nbMOVECW_pg1_bool = false;
     nbMOVECCW_pg1_bool = false;
     nbCANCEL_pg1_bool = false;
@@ -249,7 +253,29 @@ void state1()
   }
 
   // ***** TODO: Motor Jog CW/CCW & Motor Stop *****
+  if (nbSTOPMOTOR_pg1_bool)
+  {
+    servoMotorEnable(MOTOR_DISABLED);
+    nbSTOPMOTOR_pg1_bool = false;
+  }
 
+  if (nbMOVECW_pg1_bool) 
+  {
+    // user pressed "MOVE CW" button
+    nbMOVECW_pg1_bool = false;
+    servoMotorEnable(MOTOR_DISABLED);
+    servoMotorDirection(MOTOR_CW);
+    runMotor(START_MOTOR, 0.01);
+  }
+
+  if (nbMOVECCW_pg1_bool) 
+  {
+    // user pressed "MOVE CW" button
+    nbMOVECCW_pg1_bool = false;
+    servoMotorEnable(MOTOR_DISABLED);
+    servoMotorDirection(MOTOR_CCW);
+    runMotor(START_MOTOR, 0.01);
+  }
 }
 
 // State1 -> State0 transition criteria
@@ -297,10 +323,9 @@ void state2()
    * S2->S0: Operator presses "CANCEL"
    */
   
-  _machine_state = LOADCLUB;
-
   if ( machine.executeOnce )
   {
+    _machine_state = LOADCLUB;
     nbCANCEL_pg2_bool = false;
     nbSTARTTEST_pg2_bool = false;
     nbOPENCLAMP_pg2_bool = false;
@@ -339,8 +364,10 @@ bool transitionS2S3()
   float air = readAirPressure();
 
   // clamp is engaged if air pressure >= 70psi
-  if ( air >= 70 )
+  //if ( air >= 70 )
+  if ( nbSTARTTEST_pg2_bool && (air >= 70) )
   {
+    nbSTARTTEST_pg2_bool = false;
     return true;
   }
   return false;
@@ -371,17 +398,15 @@ void state3()
    * S3->S4: Operator presses the "START TEST" button AND PSI is within
    *         valid range
    * S3->S0: Operator presses the CANCEL button
-   * 
+   * &
    */
 
-  _machine_state = READY;
+  
 
   if ( machine.executeOnce )
   {
+    _machine_state = READY;
     highest_torque = 0;
-    //ntMAXTORQUE_pg0.setText("NONE");
-    //ntMAXTORQUE_pg3.setText("NONE");  // can't change text on pages that
-    //ntMAXTORQUE_pg4.setText("NONE");  // aren't active
 
     nbCANCEL_pg2_bool = false;
     nbSTARTTEST_pg2_bool = false;
@@ -409,6 +434,7 @@ bool transitionS3S4()
 { 
   float air = readAirPressure();
 
+  // club still clamped in and operator presses start
   if ( (air >= 70) && (nbSTARTTEST_pg2_bool) )
   {
     nbSTARTTEST_pg2_bool = false;
@@ -451,10 +477,11 @@ void state4()
    *        S4->S0: Operator presses "CANCEL TEST" button.
    */
 
-  _machine_state = RUNNING;
+  
 
   if ( machine.executeOnce )
   {
+    _machine_state = RUNNING;
     nbCANCEL_pg3_bool = false;
     opticalEMERGENCY_stop_hit = false;
 
@@ -517,10 +544,11 @@ void state5()
    * 
    */
 
-  _machine_state = COMPLETE;
+  
 
   if ( machine.executeOnce )
   {
+    _machine_state = COMPLETE;
     servoMotorEnable(MOTOR_DISABLED);
     nbFINISH_pg4_bool = false;
 
@@ -538,9 +566,8 @@ void state5()
     char buffer_tq[10];
     dtostrf(highest_torque, 6, 2, buffer_tq);
     // display highest torque achieved in the current test 
-    ntMAXTORQUE_pg0.setText(buffer_tq);
-    ntMAXTORQUE_pg3.setText(buffer_tq);
-    ntMAXTORQUE_pg4.setText(buffer_tq);
+    // only display on page 4 (current page)
+    ntMAXTORQUE_pg4.setText(buffer_tq); 
   }
 
 }
@@ -558,7 +585,7 @@ bool transitionS5S0()
 
 
 // ************************************
-// **** STATE6 CALIBRATION STATE ****
+// ***** STATE6 CALIBRATION STATE *****
 // ************************************
 void state6()
 {
@@ -578,10 +605,11 @@ void state6()
    *   S6->S0: Operator presses "END CAL" button
    */
 
-  _machine_state = CALIBRATE;
+  
 
   if ( machine.executeOnce )
   {
+    _machine_state = CALIBRATE;
     servoMotorEnable(MOTOR_DISABLED);
 
     highest_torque = 0;
@@ -773,7 +801,13 @@ void emergencyOpticalStopInt()
   servoMotorEnable(MOTOR_DISABLED);
 }
 
-
+void estopPressedInt()
+{
+  servoMotorEnable(MOTOR_DISABLED);
+  digitalWrite(CLAMP_PIN, false);
+  // unconditionally return back to State0 (IDLE)
+  machine.transitionTo(S0);
+}
 
 
 void updateEnvironment()
@@ -802,8 +836,8 @@ void updateDisplay()
   // decimal to string float (Arduino.h built-in)
   dtostrf(tq, 6, 2, buffer_tq);
   // display current torque
-  ntCURRENTTORQUE_pg0.setText(buffer_tq);
-  ntCURRENTREADING_pg5.setText(buffer_tq);
+  if ( _machine_state == IDLE )      { ntCURRENTTORQUE_pg0.setText(buffer_tq); }
+  if ( _machine_state == CALIBRATE ) { ntCURRENTREADING_pg5.setText(buffer_tq); }
 
   // track the highest torque value achieved since reset
   if ( tq > highest_torque )
@@ -811,9 +845,9 @@ void updateDisplay()
     highest_torque = tq;
     dtostrf(highest_torque, 6, 2, buffer_tq);
     // display highest torque achieved in the current test 
-    ntMAXTORQUE_pg0.setText(buffer_tq);
-    ntMAXTORQUE_pg3.setText(buffer_tq);
-    ntMAXTORQUE_pg4.setText(buffer_tq);
+    if ( _machine_state == IDLE )     { ntMAXTORQUE_pg0.setText(buffer_tq); }
+    if ( _machine_state == RUNNING )  { ntMAXTORQUE_pg3.setText(buffer_tq); }
+    if ( _machine_state == COMPLETE ) { ntMAXTORQUE_pg4.setText(buffer_tq); }
   }
 }
 
@@ -823,8 +857,11 @@ void updateDisplay()
 void setup() 
 {
   Serial.begin(9600);  // for debug output
-  Serial2.begin(9600); // Serial2 is for Nextion communication
+  delay(250); // allow serial to settle
+  Serial2.begin(115200); // Serial2 is for Nextion communication
   delay(500); // allow serial to settle
+
+
 
   pinMode(pinOPTICALHOME, INPUT);
   attachInterrupt(digitalPinToInterrupt(pinOPTICALHOME), 
@@ -838,7 +875,12 @@ void setup()
                   RISING);
 */
 
-  pinMode(DEBUG_PIN, INPUT_PULLUP);
+  pinMode(pinESTOP, INPUT);
+  attachInterrupt(digitalPinToInterrupt(pinESTOP),
+                  estopPressedInt,
+                  RISING);
+
+  //pinMode(DEBUG_PIN, INPUT_PULLUP);
 
   servoMotorSetup();
   setupAirValve();
