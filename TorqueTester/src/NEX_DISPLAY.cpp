@@ -158,8 +158,8 @@ void nbTARE_pg0Callback(void *ptr)         { nbTARE_pg0_bool         = true; }
 void nbMOVECW_pg1Callback(void *ptr)       { nbMOVECW_pg1_bool       = true; }
 void nbCANCEL_pg1Callback(void *ptr)       { nbCANCEL_pg1_bool       = true; }
 void nbMOVECCW_pg1Callback(void *ptr)      { nbMOVECCW_pg1_bool      = true; }
-void nbSTOPMOTOR_pg1Callback(void *ptr)    { nbSTOPMOTOR_pg1_bool    = true; Serial.println("STOP PRESSED");}
-void nbSKIPMOTOR_pg1Callback(void *ptr)    { nbSKIPMOTOR_pg1_bool    = true; Serial.println("SKIP PRESSED"); }
+void nbSTOPMOTOR_pg1Callback(void *ptr)    { nbSTOPMOTOR_pg1_bool    = true; }
+void nbSKIPMOTOR_pg1Callback(void *ptr)    { nbSKIPMOTOR_pg1_bool    = true; }
 // page 2 callbacks
 void nbOPENCLAMP_pg2Callback(void *ptr)    { nbOPENCLAMP_pg2_bool    = true; }
 void nbSTARTTEST_pg2Callback(void *ptr)    { nbSTARTTEST_pg2_bool    = true; }
