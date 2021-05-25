@@ -26,9 +26,9 @@
 #define EOP '>' // denotes end of serial data packet
 
 #define pinOPTICALHOME 20 // PB7
-//#define pinOPTICALEMERGENCY 19 // NOT ATTACHED YET
+#define pinOPTICALEMERGENCY 19 // NOT ATTACHED YET
 
-#define pinESTOP 18 // LOW->HIGH transition when E-STOP activated
+#define pinESTOP 18 // LOW->HIGH transition when E-STOP BUTTON activated
 
 #define DEBUG_PIN 42      // PL7
 boolean DEBUG = false;
@@ -58,7 +58,7 @@ volatile boolean opticalEMERGENCY_stop_hit = false; // true for 10ms when rising
 TimeSlice StatusSlice(2000);       // heartbeat object
 TimeSlice ParamSlice(100);
 long _heartbeat_interval    = 4000; // 4 second heartbeat
-long _param_update_interval = 500;  // refresh parameters on the touch screen every 200ms
+long _param_update_interval = 250;  // refresh parameters on the touch screen every 250ms
 //long _load_update_interval  = 50;   // read torque load every 50ms
 unsigned long hb_timer      = 0;    // holds the heartbeat timer in main loop
 unsigned long param_timer   = 0;    // holds the param timer in main loop
@@ -121,6 +121,7 @@ extern bool nbMOVECW_pg1_bool;
 extern bool nbCANCEL_pg1_bool;
 extern bool nbMOVECCW_pg1_bool;
 extern bool nbSTOPMOTOR_pg1_bool;
+extern bool nbSKIPMOTOR_pg1_bool;
 extern bool nbOPENCLAMP_pg2_bool;
 extern bool nbSTARTTEST_pg2_bool;
 extern bool nbCANCEL_pg2_bool;
@@ -249,10 +250,10 @@ void state1()
     nbCANCEL_pg1_bool = false;
     nbSTOPMOTOR_pg1_bool = false;
     opticalHOME_stop_hit = false; // just in case the optical stop was broken beforehand
+    nbSKIPMOTOR_pg1_bool = false;
     npHOMEMTR_PAGE.show();
   }
 
-  // ***** TODO: Motor Jog CW/CCW & Motor Stop *****
   if (nbSTOPMOTOR_pg1_bool)
   {
     servoMotorEnable(MOTOR_DISABLED);
@@ -293,9 +294,10 @@ bool transitionS1S0()
 // State1 -> State2 transition criteria
 bool transitionS1S2()
 { 
-  if (opticalHOME_stop_hit)
+  if (opticalHOME_stop_hit || nbSKIPMOTOR_pg1_bool )
   {
     opticalHOME_stop_hit = false;
+    nbSKIPMOTOR_pg1_bool = false;
     return true;
   }
   return false;
@@ -330,6 +332,7 @@ void state2()
     nbSTARTTEST_pg2_bool = false;
     nbOPENCLAMP_pg2_bool = false;
     nbCLOSECLAMP_pg2_bool = false;
+
     npLOADCLUB_PAGE.show();
   }
 
@@ -358,25 +361,35 @@ bool transitionS2S0()
   return false;
 }
 
-// State2 -> State3 transition criteria
-bool transitionS2S3()
+// State2 -> State4 transition criteria (NOTE: state 3 is now obsolete
+//                                       because we do not have an air
+//                                       pressure check)
+//bool transitionS2S3() // !!! STATE 3 OBE !!!
+bool transitionS2S4()
 { 
   float air = readAirPressure();
 
-  // clamp is engaged if air pressure >= 70psi
-  //if ( air >= 70 )
+  // originally the plan was to test for just air pressure to
+  // determine if the club is in the clamp acceptably. Unfortunately,
+  // the way the air pressure transducer is hooked up, PSI is always
+  // > 70 as long as air is connected, so this won't work. We'll keep
+  // the air pressure check in just in case we end up moving the 
+  // pressure transducer to the line that pressurizes when the clamps
+  // are closed
   if ( nbSTARTTEST_pg2_bool && (air >= 70) )
   {
     nbSTARTTEST_pg2_bool = false;
+    highest_torque = 0;
     return true;
   }
   return false;
 }
 
 
-// ************************************
+// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 // **** STATE3 READY TO TEST STATE ****
-// ************************************
+// !!!!!THIS STATE IS OBE DUE TO AIR PRESSURE CHECK NOT BEING IN PLACE!!!!!
+// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 void state3()
 {
   /* STATE 3 (READY STATE)
@@ -398,15 +411,12 @@ void state3()
    * S3->S4: Operator presses the "START TEST" button AND PSI is within
    *         valid range
    * S3->S0: Operator presses the CANCEL button
-   * &
+   * 
    */
-
-  
 
   if ( machine.executeOnce )
   {
     _machine_state = READY;
-    highest_torque = 0;
 
     nbCANCEL_pg2_bool = false;
     nbSTARTTEST_pg2_bool = false;
@@ -435,7 +445,7 @@ bool transitionS3S4()
   float air = readAirPressure();
 
   // club still clamped in and operator presses start
-  if ( (air >= 70) && (nbSTARTTEST_pg2_bool) )
+  if ( (air >= 70.0) && (nbSTARTTEST_pg2_bool) )
   {
     nbSTARTTEST_pg2_bool = false;
     return true;
@@ -456,7 +466,8 @@ void state4()
    * will be rotating towards the club and applying a 
    * torque force to the head of the club while the shaft is
    * firmly clamped. The maximum value of the torque will be
-   * tracked and displayed on the screen in real-time. 
+   * tracked and displayed on the screen in real-time. This
+   * state exists on "Page 3 - TESTGOGOGO"
    * 
    * - State 4 Actions:
    * Motor enabled and rotating such that it applies a torque
@@ -477,18 +488,20 @@ void state4()
    *        S4->S0: Operator presses "CANCEL TEST" button.
    */
 
-  
-
   if ( machine.executeOnce )
   {
     _machine_state = RUNNING;
     nbCANCEL_pg3_bool = false;
     opticalEMERGENCY_stop_hit = false;
 
-    npTESTGOGOGO_PAGE.show();
-  }
+    highest_torque = 0;
 
-  
+    npTESTGOGOGO_PAGE.show();
+
+    servoMotorEnable(MOTOR_DISABLED);
+    servoMotorDirection(MOTOR_CW);
+    runMotor(START_MOTOR, 0.01); // may need to adjust speed slower
+  }
 }
 
 // State4 -> State0 transition criteria
@@ -497,6 +510,7 @@ bool transitionS4S0()
   // Operator pressed CANCEL during test
   if ( nbCANCEL_pg3_bool )
   {
+    servoMotorEnable(MOTOR_DISABLED);
     nbCANCEL_pg3_bool = false;
     return true;
   }
@@ -509,12 +523,40 @@ bool transitionS4S5()
   // 2 conditions can transition you from S4 to S5 (in order of importance)
   //   1. Emergency optical endstop activated (club broke and failed torque test)
   //   2. Expected torque value achieved (club passed torque test) 
-  //float tq = loadcellReadCurrentValue();
 
-  // TODO: IF STATEMENT TO CHECK TORQUE VALUE + E-STOP BOOLEAN
-  // if torque value >= acceptable torque value, OVERALL_TEST_PASS = TRUE
-  // if E-STOP boolean TRUE then club broke, OVERALL_TEST_PASS = FALSE
-  // NOTE: In either condition, immediately do servoMotorEnable(MOTOR_DISABLED);
+  if ( opticalEMERGENCY_stop_hit )
+  {
+    opticalEMERGENCY_stop_hit = false;
+    // the emergency optical stop was broken so that means
+    // the club broke and the test FAILed overall
+
+    // motor backoff clubhead
+    servoMotorEnable(MOTOR_DISABLED);
+    servoMotorDirection(MOTOR_CCW); // back the torque tester off the club
+    runMotor(START_MOTOR, 0.05);
+    delay(3000); // let the motor move away for 3 seconds
+    servoMotorEnable(MOTOR_DISABLED);
+
+    OVERALL_TEST_PASS = false;
+    return true;
+  }
+
+  float tq = loadcellReadCurrentValue();
+  if ( (tq >= 100.0) && (!opticalEMERGENCY_stop_hit) )
+  {
+    // club withstood max torque successfully
+    // so the test is considered a PASS
+
+    // motor backoff clubhead
+    servoMotorEnable(MOTOR_DISABLED);
+    servoMotorDirection(MOTOR_CCW); // back the torque tester off the club
+    runMotor(START_MOTOR, 0.05);
+    delay(3000); // let the motor move away for 3 seconds
+    servoMotorEnable(MOTOR_DISABLED);
+    
+    OVERALL_TEST_PASS = true;
+    return true;
+  }
 
   return false;
 }
@@ -544,8 +586,6 @@ void state5()
    * 
    */
 
-  
-
   if ( machine.executeOnce )
   {
     _machine_state = COMPLETE;
@@ -569,7 +609,6 @@ void state5()
     // only display on page 4 (current page)
     ntMAXTORQUE_pg4.setText(buffer_tq); 
   }
-
 }
 
 // State5 -> State0 transition criteria
@@ -604,8 +643,6 @@ void state6()
    * - State 6 Transition Criteria:
    *   S6->S0: Operator presses "END CAL" button
    */
-
-  
 
   if ( machine.executeOnce )
   {
@@ -680,8 +717,6 @@ void state6()
     scale_calibration_factor -= 10;
     loadcellSetCalibrationFactor(scale_calibration_factor);
   }
-
-  //Serial.println("State 6 - LOAD CELL CALIBRATION STATE");
 }
 
 // State6 -> State0 transition criteria
@@ -812,8 +847,6 @@ void estopPressedInt()
 
 void updateEnvironment()
 {
-  //char* cp; // for tracking state machine current state, not implemented
-  //double pos = servoMotorReadRotationAngle(); // doesn't work yet
   float tq = loadcellReadCurrentValue();
   float air = readAirPressure();
 
@@ -827,27 +860,30 @@ void updateEnvironment()
 
 
 
-
 void updateDisplay()
 {
   char buffer_tq[10]; 
+  char high_tq[10];
   float tq = loadcellReadCurrentValue();
   
   // decimal to string float (Arduino.h built-in)
   dtostrf(tq, 6, 2, buffer_tq);
-  // display current torque
-  if ( _machine_state == IDLE )      { ntCURRENTTORQUE_pg0.setText(buffer_tq); }
   if ( _machine_state == CALIBRATE ) { ntCURRENTREADING_pg5.setText(buffer_tq); }
 
   // track the highest torque value achieved since reset
   if ( tq > highest_torque )
   {
     highest_torque = tq;
-    dtostrf(highest_torque, 6, 2, buffer_tq);
-    // display highest torque achieved in the current test 
-    if ( _machine_state == IDLE )     { ntMAXTORQUE_pg0.setText(buffer_tq); }
-    if ( _machine_state == RUNNING )  { ntMAXTORQUE_pg3.setText(buffer_tq); }
-    if ( _machine_state == COMPLETE ) { ntMAXTORQUE_pg4.setText(buffer_tq); }
+    dtostrf(highest_torque, 6, 2, high_tq);
+  }
+
+  if ( _machine_state == RUNNING )  { ntMAXTORQUE_pg3.setText(high_tq); }
+  if ( _machine_state == COMPLETE ) { ntMAXTORQUE_pg4.setText(high_tq); }
+
+  if ( _machine_state == IDLE )      
+  { 
+    ntCURRENTTORQUE_pg0.setText(buffer_tq);
+    ntMAXTORQUE_pg0.setText(buffer_tq);
   }
 }
 
@@ -861,19 +897,15 @@ void setup()
   Serial2.begin(115200); // Serial2 is for Nextion communication
   delay(500); // allow serial to settle
 
-
-
   pinMode(pinOPTICALHOME, INPUT);
   attachInterrupt(digitalPinToInterrupt(pinOPTICALHOME), 
                   homeOpticalStopInt,
                   RISING);
 
-/* TODO: UNCOMMENT WHEN EMERGENCY STOP HOOKED UP
   pinMode(pinOPTICALEMERGENCY, INPUT);
   attachInterrupt(digitalPinToInterrupt(pinOPTICALEMERGENCY), 
                   emergencyOpticalStopInt,
                   RISING);
-*/
 
   pinMode(pinESTOP, INPUT);
   attachInterrupt(digitalPinToInterrupt(pinESTOP),
@@ -892,7 +924,7 @@ void setup()
   setupNextion();
 
   // initialize heartbeat and param update to touchscreen intervals
-  StatusSlice.Interval(_heartbeat_interval);
+  //StatusSlice.Interval(_heartbeat_interval);
   ParamSlice.Interval(_param_update_interval);
 
   S0->addTransition(&transitionS0S1, S1); // IDLE to HOME MOTOR
@@ -900,7 +932,8 @@ void setup()
   S1->addTransition(&transitionS1S0, S0); // HOME MOTOR to IDLE
   S1->addTransition(&transitionS1S2, S2); // HOME MOTOR to LOAD CLUB
   S2->addTransition(&transitionS2S0, S0); // LOAD CLUB to IDLE
-  S2->addTransition(&transitionS2S3, S3); // LOAD CLUB to START TEST
+  //S2->addTransition(&transitionS2S3, S3); // LOAD CLUB to START TEST !!OBSOLETE!!
+  S2->addTransition(&transitionS2S4, S4); // LOAD CLUB to TEST RUNNING
   S3->addTransition(&transitionS3S0, S0); // START TEST to IDLE
   S3->addTransition(&transitionS3S4, S4); // START TEST to TEST RUNNING
   S4->addTransition(&transitionS4S0, S0); // TEST RUNNING to IDLE
@@ -919,30 +952,16 @@ void loop()
 
   //checkSerial();
   
+  /* TODO: UNCOMMENT WHEN READY TO SHOW HEARTBEAT AGAIN */
   /*
-  if ( opticalHOME_stop_hit )
-  {
-    Serial.println("*OPTICAL HOME STOP HIT*");
-  }
-  
-  if ( opticalEMERGENCY_stop_hit )
-  {
-    Serial.println("*OPTICAL EMERGENCY STOP HIT*");
-  }
-  */
-  
-/* TODO: UNCOMMENT WHEN READY TO SHOW HEARTBEAT AGAIN */
-/*
   hb_timer = millis();
   if (StatusSlice.Triggered(hb_timer)) { updateEnvironment(); } // output heartbeat to serial 
-*/
+  */
   
   nexLoop(nex_listen_list);
   
-  /* TODO: UNCOMMENT WHEN READY TO HAVE TOUCHSCREEN HOOKED UP */
   param_timer = millis();
   if (ParamSlice.Triggered(param_timer)) { updateDisplay(); }
   
   machine.run();
-  //delay(1000); // may need this delay if loop is too fast for state machine
 }

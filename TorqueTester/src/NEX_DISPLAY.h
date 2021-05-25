@@ -14,17 +14,8 @@
 #ifndef NEX_DISPLAY_H
 #define NEX_DISPLAY_H
 
-/* === START NEXTION TOUCH DISPLAY CALLBACK FUNCTION PROTOTYPES === */
+/* === START NEXTION TOUCH DISPLAY FUNCTION PROTOTYPES === */
 void setupNextion();
-void nbHOMECallback(void *ptr);
-void nbTARECallback(void *ptr);
-void nbJOGCWCallback(void *ptr);
-void nbJOGCCWCallback(void *ptr);
-void nbSTARTCallback(void *ptr);
-void nbSTOPCallback(void *ptr);
-void nbOPENCallback(void *ptr);
-void nbCLOSECallback(void *ptr);
-void nbCALIBCallback(void *ptr);
-/* ==== END NEXTION TOUCH DISPLAY CALLBACK FUNCTION PROTOTYPES ==== */
+/* ==== END NEXTION TOUCH DISPLAY FUNCTION PROTOTYPES ==== */
 
 #endif

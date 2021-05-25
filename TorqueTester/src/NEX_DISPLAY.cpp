@@ -21,6 +21,7 @@ bool nbTARE_pg0_bool         = false;
 bool nbMOVECW_pg1_bool       = false;
 bool nbCANCEL_pg1_bool       = false;
 bool nbMOVECCW_pg1_bool      = false;
+bool nbSKIPMOTOR_pg1_bool    = false;
 bool nbSTOPMOTOR_pg1_bool    = false;
 bool nbOPENCLAMP_pg2_bool    = false;
 bool nbSTARTTEST_pg2_bool    = false;
@@ -52,6 +53,7 @@ NexButton nbMOVECW_pg1    = NexButton( 1, 3, "b0");
 NexButton nbCANCEL_pg1    = NexButton( 1, 5, "b2");
 NexButton nbMOVECCW_pg1   = NexButton( 1, 4, "b1");
 NexButton nbSTOPMOTOR_pg1 = NexButton( 1, 7, "b3");
+NexButton nbSKIPMOTOR_pg1 = NexButton( 1, 8, "b4");
 // PAGE 2 BUTTONS
 NexButton nbOPENCLAMP_pg2  = NexButton( 2, 1, "b0");
 NexButton nbSTARTTEST_pg2  = NexButton( 2, 5, "b3");
@@ -112,6 +114,7 @@ NexTouch *nex_listen_list[] =
     &nbCANCEL_pg1,
     &nbMOVECCW_pg1,
     &nbSTOPMOTOR_pg1,
+    &nbSKIPMOTOR_pg1,
     &nbOPENCLAMP_pg2,
     &nbSTARTTEST_pg2,
     &nbCANCEL_pg2,
@@ -155,7 +158,8 @@ void nbTARE_pg0Callback(void *ptr)         { nbTARE_pg0_bool         = true; }
 void nbMOVECW_pg1Callback(void *ptr)       { nbMOVECW_pg1_bool       = true; }
 void nbCANCEL_pg1Callback(void *ptr)       { nbCANCEL_pg1_bool       = true; }
 void nbMOVECCW_pg1Callback(void *ptr)      { nbMOVECCW_pg1_bool      = true; }
-void nbSTOPMOTOR_pg1Callback(void *ptr)    { nbSTOPMOTOR_pg1_bool    = true; }
+void nbSTOPMOTOR_pg1Callback(void *ptr)    { nbSTOPMOTOR_pg1_bool    = true; Serial.println("STOP PRESSED");}
+void nbSKIPMOTOR_pg1Callback(void *ptr)    { nbSKIPMOTOR_pg1_bool    = true; Serial.println("SKIP PRESSED"); }
 // page 2 callbacks
 void nbOPENCLAMP_pg2Callback(void *ptr)    { nbOPENCLAMP_pg2_bool    = true; }
 void nbSTARTTEST_pg2Callback(void *ptr)    { nbSTARTTEST_pg2_bool    = true; }
@@ -190,6 +194,7 @@ void setupNextion()
     nbCANCEL_pg1.attachPop(      nbCANCEL_pg1Callback,       &nbCANCEL_pg1);
     nbMOVECCW_pg1.attachPop(     nbMOVECCW_pg1Callback,      &nbMOVECCW_pg1);
     nbSTOPMOTOR_pg1.attachPop(   nbSTOPMOTOR_pg1Callback,    &nbSTOPMOTOR_pg1);
+    nbSKIPMOTOR_pg1.attachPop(   nbSKIPMOTOR_pg1Callback,    &nbSKIPMOTOR_pg1);
     nbOPENCLAMP_pg2.attachPop(   nbOPENCLAMP_pg2Callback,    &nbOPENCLAMP_pg2);
     nbSTARTTEST_pg2.attachPop(   nbSTARTTEST_pg2Callback,    &nbSTARTTEST_pg2);
     nbCANCEL_pg2.attachPop(      nbCANCEL_pg2Callback,       &nbCANCEL_pg2);
