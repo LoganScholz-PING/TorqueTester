@@ -30,13 +30,10 @@ long loadcellDetermineZero()
     }
     
     _eeprom_dirty = true; // we updated an EEPROM value (scale_zero_bias)
-    //WriteEEPROM(false); // forcewrite = false
     return scale_zero_bias;
 }
 
-// may delete this function if loadcellDetermineCalibrationFactor() works
-// but may update this function to read the calibration factor out of the
-// EPROM upon startup
+
 void loadcellSetCalibrationFactor(float cal)
 {  
     if (DEBUG)
@@ -56,11 +53,12 @@ void loadcellSetCalibrationFactor(float cal)
     }
 }
 
-// The function below allows the user to set the calibration factor manually
+// The function below allows the user to set the calibration factor manually through serial
 
-// **************************************
-// *** TODO: THIS NEEDS TO BE RE-DONE ***
-// **************************************
+// *************************************************************
+// *** NOTE: THIS IS MANUAL SERIAL CALIBRATION FACTOR METHOD ***
+// ************ (PRETTY MUCH JUST FOR EMERGENCIES!) ************
+// *************************************************************
 
 float loadcellDetermineCalibrationFactor()
 {
@@ -147,7 +145,6 @@ float loadcellDetermineCalibrationFactor()
     _eeprom_dirty = true; // we updated an EEPROM value (scale_calibration_factor)
     WriteEEPROM(false); // forcewrite = false, _eeprom_dirty will be true
     
-
     return scale_calibration_factor;
 }
 

@@ -40,6 +40,7 @@ void servoMotorSetup()
     servoMotorSetupQuadrature();
 }
 
+
 void servoMotorEnable(byte v)
 {
     // Toggle state of the mtrEnablePin
@@ -52,8 +53,8 @@ void servoMotorEnable(byte v)
         noNewTone(mtrPulsePin);
         motor_moving = false;
     }
-    //Serial.print("_motor_enable status: "); Serial.println(_motor_enable);
 }
+
 
 void servoMotorFrequency(float f)
 {
@@ -61,6 +62,8 @@ void servoMotorFrequency(float f)
     if ( f > 1.0 ) { f = 1.0; }
 
     _current_speed = f;
+    // use f to determine speed relative to
+    // max frequency
     unsigned long x = (f * _max_freq);
 
     // NewTone(pin, freq, length)
@@ -68,16 +71,12 @@ void servoMotorFrequency(float f)
     NewTone(mtrPulsePin, x);
 }
 
+
 void servoMotorDirection(boolean v)
 {
     // TODO
     _motor_direction = v;
     digitalWrite(mtrDirectionPin, _motor_direction);
-}
-
-void servoMotorAdjustSpeed(unsigned long nw)
-{
-    // TODO
 }
 
 
@@ -175,7 +174,7 @@ int servoMotorMoveDegrees(int deg)
     int correction = error * deg; // milliseconds
 
     // using NewTone to activate the timer registers
-    // period = 5 (200Hz, 2.5ms on/2.5ms off)
+    // period = 5ms (200Hz, 2.5ms on/2.5ms off)
     // unsigned long time_on_ms = (5 * pulses) - correction;
     unsigned long time_on_ms = (5 * pulses); // uncorrected
 
@@ -219,48 +218,6 @@ void servoMotorSetupQuadrature()
 long servoMotorReadQuadratureCount()
 {
     _quad_count = QuadCounter.read_counter();
-    
-    /* the output from the if statement below can get obnoxious
-    if (DEBUG)
-    {
-        byte* b = (byte*)(&_quad_count);
-        Serial.print("readQuad:"); 
-        Serial.print(_quad_count); 
-        Serial.print(" ");
-        print_binary(*(b + 2));
-        Serial.print(" ");
-        print_binary(*(b + 3));
-        Serial.print(" ");
-        Serial.println();
-    }
-    */
-    
+       
     return _quad_count;
 }
-
-double servoMotorReadRotationAngle()
-{
-    
-    // TODO: THIS FUNCTION DOES NOT WORK YET
-    //  - NEED TO UPDATE IT TO BE RELATIVE TO HOME/EMERGENCY STOPS
-    //    (AKA: record current quadrature count @ home position and 
-    //    consider that 0 degrees)
-    
-    servoMotorReadQuadratureCount();
-
-    long q = (_quad_count % pulses_per_revolution);
-
-    if (DEBUG)
-    {
-        Serial.print("Read Quad:"); Serial.print(_quad_count); Serial.print(" || readRot Q:"); Serial.println(q);
-    }
-    
-    double ang = (degrees_per_pulse * q);
-    
-    if (DEBUG)
-    {
-        Serial.print("readAng A:"); Serial.println(ang);
-    }
-    
-    return ang;
-} 

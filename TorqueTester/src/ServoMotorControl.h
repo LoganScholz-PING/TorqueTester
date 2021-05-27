@@ -24,7 +24,6 @@
 void servoMotorSetup();
 void servoMotorEnable(byte v);
 void servoMotorDirection(boolean v);
-void servoMotorAdjustSpeed(unsigned long nw);
 void servoMotorFrequency(float f);
 void servoMotorSTOP();
 int servoMotorMoveDegrees(int deg);
@@ -35,7 +34,6 @@ void runMotor(int cmd, float f = 0.01);
 /* === START QUADRATURE FUNCTION PROTOTYPES === */
 void servoMotorSetupQuadrature();
 long servoMotorReadQuadratureCount();
-double servoMotorReadRotationAngle();
 /* === END QUADRATURE FUNCTION PROTOTYPES === */
 
 #endif // end SERVOMOTORCONTROL_H guard macro

@@ -4,31 +4,30 @@
 #include "LoadCell.h"
 #include "AirPressure.h"
 
-/* === START main.cpp EXTERNS === */
-extern float highest_torque; // reset to 0 when new test starts
-/* ==== END main.cpp EXTERNS ==== */
-
 // the booleans below are meant to track if buttons have been pressed
 // in the callback functions... this is the best way I can think to 
 // do this for now
-//
-// idea: throw these in a 21 element boolean array so we can quickly
-//       iterate through the array to reset all elements FALSE(????)
+// Page 0 Bools
 bool nbSTARTTEST_pg0_bool    = false;
 bool nbOPENCLAMP_pg0_bool    = false;
 bool nbCALIBRATE_pg0_bool    = false;
 bool nbTARE_pg0_bool         = false;
+// Page 1 Bools
 bool nbMOVECW_pg1_bool       = false;
 bool nbCANCEL_pg1_bool       = false;
 bool nbMOVECCW_pg1_bool      = false;
 bool nbSKIPMOTOR_pg1_bool    = false;
 bool nbSTOPMOTOR_pg1_bool    = false;
+// Page 2 Bools
 bool nbOPENCLAMP_pg2_bool    = false;
 bool nbSTARTTEST_pg2_bool    = false;
 bool nbCANCEL_pg2_bool       = false;
 bool nbCLOSECLAMP_pg2_bool   = false;
+// Page 3 Bools
 bool nbCANCEL_pg3_bool       = false;
+// Page 4 Bools
 bool nbFINISH_pg4_bool       = false;
+// Page 5 Bools
 bool nbTARE_pg5_bool         = false;
 bool nbPLUS1000_pg5_bool     = false;
 bool nbPLUS100_pg5_bool      = false;
@@ -41,8 +40,8 @@ bool nbSAVESETTINGS_pg5_bool = false;
 
 
 
-/* === START NEXTION TOUCH DISPLAY DEFINITIONS === */
-/* Nextion BUTTON Object Declarations */
+/* ==== START NEXTION TOUCH DISPLAY DEFINITIONS ==== */
+/* === Nextion BUTTON Object Declarations === */
 // PAGE 0 BUTTONS
 NexButton nbSTARTTEST_pg0 = NexButton( 0, 6,  "b2");
 NexButton nbOPENCLAMP_pg0 = NexButton( 0, 2,  "b0");
@@ -75,8 +74,7 @@ NexButton nbENDCAL_pg5       = NexButton( 5, 8,  "b6");
 NexButton nbSAVESETTINGS_pg5 = NexButton( 5, 13, "b8");
 
 
-/* Nextion TEXT FIELD Object Declarations */
-// example: NexText   ntSTATUS    = NexText(0, 18, "t8");  // essentially the current state of the state machine for debugging
+/* === Nextion TEXT FIELD Object Declarations === */
 // PAGE 0 TEXT FIELDS
 NexText ntCURRENTTORQUE_pg0 = NexText( 0, 10, "t6");
 NexText ntMAXTORQUE_pg0     = NexText( 0, 4,  "t2");
@@ -90,22 +88,22 @@ NexText ntTESTRESULT_pg4 = NexText( 4, 6, "t5");
 NexText ntCURRENTREADING_pg5 = NexText( 5, 11, "t2");   
 
 
-/* Nextion PAGE Object Declarations */
+/* === Nextion PAGE Object Declarations === */
+// NexPage declaration:
 // NexPage(uint8_t pid, uint8_t cid, char* name); note that cid is always 0 for pages
-NexPage npMAIN_PAGE = NexPage(0, 0, "MAIN");
-NexPage npHOMEMTR_PAGE = NexPage(1, 0, "HOMEMTR");
-NexPage npLOADCLUB_PAGE = NexPage(2, 0, "LOADCLUB");
+NexPage npMAIN_PAGE =       NexPage(0, 0, "MAIN");
+NexPage npHOMEMTR_PAGE =    NexPage(1, 0, "HOMEMTR");
+NexPage npLOADCLUB_PAGE =   NexPage(2, 0, "LOADCLUB");
 NexPage npTESTGOGOGO_PAGE = NexPage(3, 0, "TESTGOGOGO");
-NexPage npFINISHED_PAGE = NexPage(4, 0, "FINISHED");
-NexPage npCALIBRATE_PAGE = NexPage(5, 0, "CALIBRATE");
-
+NexPage npFINISHED_PAGE =   NexPage(4, 0, "FINISHED");
+NexPage npCALIBRATE_PAGE =  NexPage(5, 0, "CALIBRATE");
 /* ==== END NEXTION TOUCH DISPLAY DEFINITIONS ==== */
 
 
 /* === START NEXTION NexTouch OBJECT INSTANTIATION === */
 NexTouch *nex_listen_list[] = 
 {
-    // put all the buttons here
+    // The list below consists of interactable buttons
     &nbSTARTTEST_pg0,
     &nbOPENCLAMP_pg0,
     &nbCALIBRATE_pg0,
@@ -134,17 +132,6 @@ NexTouch *nex_listen_list[] =
 };
 /* ==== END NEXTION NexTouch OBJECT INSTANTIATION ==== */
 
-
-
-
-
-// TODO: UPDATE THIS FOR OPENING, CLOSING CLAMPS?
-void AirValve(boolean open)
-{
-    // [open == true] will DISCONNECT NO2 from COM2
-    // [open == false] will CONNECT NO2 to COM2
-    digitalWrite(CLAMP_PIN, (open) ? 0:1);
-}
 
 
 
@@ -186,21 +173,27 @@ void setupNextion()
 {
     nexInit();
 
+    // Page 0
     nbSTARTTEST_pg0.attachPop(   nbSTARTTEST_pg0Callback,    &nbSTARTTEST_pg0);
     nbOPENCLAMP_pg0.attachPop(   nbOPENCLAMP_pg0Callback,    &nbOPENCLAMP_pg0);
     nbCALIBRATE_pg0.attachPop(   nbCALIBRATE_pg0Callback,    &nbCALIBRATE_pg0);
     nbTARE_pg0.attachPop(        nbTARE_pg0Callback,         &nbTARE_pg0);
+    // Page 1
     nbMOVECW_pg1.attachPop(      nbMOVECW_pg1Callback,       &nbMOVECW_pg1);
     nbCANCEL_pg1.attachPop(      nbCANCEL_pg1Callback,       &nbCANCEL_pg1);
     nbMOVECCW_pg1.attachPop(     nbMOVECCW_pg1Callback,      &nbMOVECCW_pg1);
     nbSTOPMOTOR_pg1.attachPop(   nbSTOPMOTOR_pg1Callback,    &nbSTOPMOTOR_pg1);
     nbSKIPMOTOR_pg1.attachPop(   nbSKIPMOTOR_pg1Callback,    &nbSKIPMOTOR_pg1);
+    // Page 2
     nbOPENCLAMP_pg2.attachPop(   nbOPENCLAMP_pg2Callback,    &nbOPENCLAMP_pg2);
     nbSTARTTEST_pg2.attachPop(   nbSTARTTEST_pg2Callback,    &nbSTARTTEST_pg2);
     nbCANCEL_pg2.attachPop(      nbCANCEL_pg2Callback,       &nbCANCEL_pg2);
     nbCLOSECLAMP_pg2.attachPop(  nbCLOSECLAMP_pg2Callback,   &nbCLOSECLAMP_pg2);
+    // Page 3
     nbCANCEL_pg3.attachPop(      nbCANCEL_pg3Callback,       &nbCANCEL_pg3);
+    // Page 4
     nbFINISH_pg4.attachPop(      nbFINISH_pg4Callback,       &nbFINISH_pg4);
+    // Page 5
     nbTARE_pg5.attachPop(        nbTARE_pg5Callback,         &nbTARE_pg5);
     nbPLUS1000_pg5.attachPop(    nbPLUS1000_pg5Callback,     &nbPLUS1000_pg5);
     nbPLUS100_pg5.attachPop(     nbPLUS100_pg5Callback,      &nbPLUS100_pg5);

@@ -27,7 +27,6 @@
 
 #define pinOPTICALHOME 20 // PB7
 #define pinOPTICALEMERGENCY 19 // NOT ATTACHED YET
-
 #define pinESTOP 18 // LOW->HIGH transition when E-STOP BUTTON activated
 
 #define DEBUG_PIN 42      // PL7
@@ -45,21 +44,14 @@ boolean started = false; // serial data flow control
 boolean ended   = false;   // serial data flow control
 
 // optical stop vars
-//boolean optical_home_stop_chk      = false; // samples the digital state of the HOME optical stop
-volatile boolean opticalHOME_stop_hit      = false; // true for 10ms when rising edge detected on HOME optical stop
-//boolean optical_emergency_stop_chk = false; // samples the digital state of the EMERGENCY optical stop
-volatile boolean opticalEMERGENCY_stop_hit = false; // true for 10ms when rising edge detected on EMERGENCY optical stop
-//boolean prev_opt_home_reading      = false; // state control variable for determining rising edge of HOME stop
-//boolean prev_opt_emergency_reading = false; // state control variable for determining rising edge of EMERGENCY stop
-//long opt_home_debounce_time             = 0;     // 10ms debounce timer that starts upon detection of rising edge of HOME stop
-//long opt_emergency_debounce_time        = 0;     // 10ms debounce timer that starts upon detection of rising edge of EMERGENCY stop
+volatile boolean opticalHOME_stop_hit      = false; 
+volatile boolean opticalEMERGENCY_stop_hit = false; 
 
 // heartbeat vars
 TimeSlice StatusSlice(2000);       // heartbeat object
 TimeSlice ParamSlice(100);
 long _heartbeat_interval    = 4000; // 4 second heartbeat
-long _param_update_interval = 250;  // refresh parameters on the touch screen every 250ms
-//long _load_update_interval  = 50;   // read torque load every 50ms
+long _param_update_interval = 200;  // refresh parameters on the touch screen every 250ms
 unsigned long hb_timer      = 0;    // holds the heartbeat timer in main loop
 unsigned long param_timer   = 0;    // holds the param timer in main loop
 
@@ -69,13 +61,11 @@ float highest_torque = 0;
 // misc vars
 int START_MOTOR      = 1;      // for passing to runMotor()
 int STOP_MOTOR       = 0;      // for passing to runMotor()
-long quad            = 0;      // for tracking motor movement
-double start_counts  = 0;      // for tracking motor movement
-double total_counts  = 0;      // for tracking motor movement
 boolean motor_moving = false;  // for tracking if motor is moving
 
 boolean OVERALL_TEST_PASS = false;
 /* ==== END PROGRAM FLOW CONTROL VARIABLES ==== */
+
 
 
 /* === START ServoMotorControl.cpp EXTERNS === */
@@ -151,6 +141,7 @@ MACHINESTATE _machine_state = IDLE;
 
 // ========= State Functions =========
 
+
 // **********************************
 // **** STATE0 IDLE (WAIT) STATE ****
 // **********************************
@@ -193,7 +184,6 @@ void state0()
     nbOPENCLAMP_pg0_bool = false;
   }
 }
-
 
 // State0 -> State1 transition criteria
 bool transitionS0S1()
@@ -390,8 +380,9 @@ bool transitionS2S4()
 // **** STATE3 READY TO TEST STATE ****
 // !!!!!THIS STATE IS OBE DUE TO AIR PRESSURE CHECK NOT BEING IN PLACE!!!!!
 // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-void state3()
-{
+
+//void state3()
+//{
   /* STATE 3 (READY STATE)
    *
    * - State 3 Description:
@@ -413,7 +404,7 @@ void state3()
    * S3->S0: Operator presses the CANCEL button
    * 
    */
-
+/* state 3 OBE
   if ( machine.executeOnce )
   {
     _machine_state = READY;
@@ -452,7 +443,7 @@ bool transitionS3S4()
   }
   return false;
 }
-
+*/ 
 
 // ***************************************
 // **** STATE4 TEST IN PROGRESS STATE ****
@@ -733,7 +724,7 @@ bool transitionS6S0()
 State* S0 = machine.addState(&state0);
 State* S1 = machine.addState(&state1);
 State* S2 = machine.addState(&state2);
-State* S3 = machine.addState(&state3);
+//State* S3 = machine.addState(&state3);
 State* S4 = machine.addState(&state4);
 State* S5 = machine.addState(&state5);
 State* S6 = machine.addState(&state6);
@@ -934,8 +925,8 @@ void setup()
   S2->addTransition(&transitionS2S0, S0); // LOAD CLUB to IDLE
   //S2->addTransition(&transitionS2S3, S3); // LOAD CLUB to START TEST !!OBSOLETE!!
   S2->addTransition(&transitionS2S4, S4); // LOAD CLUB to TEST RUNNING
-  S3->addTransition(&transitionS3S0, S0); // START TEST to IDLE
-  S3->addTransition(&transitionS3S4, S4); // START TEST to TEST RUNNING
+  //S3->addTransition(&transitionS3S0, S0); // START TEST to IDLE !!OBSOLETE!!
+  //S3->addTransition(&transitionS3S4, S4); // START TEST to TEST RUNNING !!OBSOLETE!!
   S4->addTransition(&transitionS4S0, S0); // TEST RUNNING to IDLE
   S4->addTransition(&transitionS4S5, S5); // TEST RUNNING to TEST FINISHED
   S5->addTransition(&transitionS5S0, S0); // TEST FINISHED to IDLE
