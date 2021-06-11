@@ -80,13 +80,18 @@ NexText ntCURRENTTORQUE_pg0 = NexText( 0, 10, "t6");
 NexText ntMAXTORQUE_pg0     = NexText( 0, 4,  "t2");
 NexText ntSTATUS_pg0        = NexText( 0, 8,  "t4");
 // PAGE 3 TEXT FIELDS
-NexText ntMAXTORQUE_pg3 = NexText( 3, 3, "t1");
+NexText ntMAXTORQUE_pg3  = NexText( 3, 3, "t1");
+NexText ntSEEKTARGET_pg3 = NexText( 3, 9, "t7"); 
 // PAGE 4 TEXT FIELDS
 NexText ntMAXTORQUE_pg4  = NexText( 4, 3, "t2");
 NexText ntTESTRESULT_pg4 = NexText( 4, 6, "t5");
 // PAGE 5 TEXT FIELDS
 NexText ntCURRENTREADING_pg5 = NexText( 5, 11, "t2");   
 
+
+/* === Nextion NUMBER Object Declarations === */
+NexNumber nnUSERTORQUE_pg2 = NexNumber( 2, 7, "n0");
+/* ==== END Nextion NUMBER Object Declarations ==== */
 
 /* === Nextion PAGE Object Declarations === */
 // NexPage declaration:

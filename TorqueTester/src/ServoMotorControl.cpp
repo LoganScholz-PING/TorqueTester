@@ -30,6 +30,7 @@ LS7366 QuadCounter(QUAD_CHIPSELECT);
 
 void servoMotorSetup()
 {
+    Serial.println("start servoMotorSetup");
     pinMode(mtrPulsePin, OUTPUT);
     pinMode(mtrDirectionPin, OUTPUT);
     pinMode(mtrEnablePin, OUTPUT);
@@ -38,6 +39,7 @@ void servoMotorSetup()
     digitalWrite(mtrDirectionPin, MOTOR_CCW);
 
     servoMotorSetupQuadrature();
+    Serial.println("end servoMotorSetup");
 }
 
 

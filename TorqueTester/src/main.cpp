@@ -29,7 +29,7 @@
 #define pinOPTICALEMERGENCY 19 // NOT ATTACHED YET
 #define pinESTOP 18 // LOW->HIGH transition when E-STOP BUTTON activated
 
-#define DEBUG_PIN 42      // PL7
+//#define DEBUG_PIN 42      // PL7
 boolean DEBUG = false;
 /* === END PROGRAM SPECIFIC DEFINES === */
 
@@ -86,9 +86,14 @@ extern NexText ntCURRENTTORQUE_pg0;
 extern NexText ntMAXTORQUE_pg0;
 extern NexText ntSTATUS_pg0;
 extern NexText ntMAXTORQUE_pg3;
+extern NexText ntSEEKTARGET_pg3;
 extern NexText ntMAXTORQUE_pg4;
 extern NexText ntTESTRESULT_pg4;
 extern NexText ntCURRENTREADING_pg5;
+
+
+// all readable number fields are below
+extern NexNumber nnUSERTORQUE_pg2;
 
 // all pages are below
 extern NexPage npMAIN_PAGE;
@@ -127,6 +132,11 @@ extern bool nbMINUS100_pg5_bool;
 extern bool nbMINUS10_pg5_bool;
 extern bool nbENDCAL_pg5_bool;
 extern bool nbSAVESETTINGS_pg5_bool;
+
+// memory location to hold pg2 manually entered torque value (seek target)
+uint32_t user_torque_value = 0;
+// variable to hold either default or user entered torque value (seek target)
+uint32_t torque_seek_target = 100; // lbf*in (inch-pounds)
 /* ==== END NEX_DISPLAY.cpp EXTERNS ==== */
 
 
@@ -181,6 +191,7 @@ void state0()
   if (nbOPENCLAMP_pg0_bool)
   {
     digitalWrite(CLAMP_PIN, false);
+    Serial.println("clamp button");
     nbOPENCLAMP_pg0_bool = false;
   }
 }
@@ -323,7 +334,15 @@ void state2()
     nbOPENCLAMP_pg2_bool = false;
     nbCLOSECLAMP_pg2_bool = false;
 
+    torque_seek_target = 100; // reset to default 100 lbf*in just in case
+    user_torque_value  = 0;   // default to 0
+    
+    nnUSERTORQUE_pg2.setValue(user_torque_value);
+
     npLOADCLUB_PAGE.show();
+
+    // reset the value
+    nnUSERTORQUE_pg2.setValue(0);
   }
 
   if ( nbOPENCLAMP_pg2_bool )
@@ -366,10 +385,30 @@ bool transitionS2S4()
   // the air pressure check in just in case we end up moving the 
   // pressure transducer to the line that pressurizes when the clamps
   // are closed
-  if ( nbSTARTTEST_pg2_bool && (air >= 70) )
+  if ( nbSTARTTEST_pg2_bool && (air >= 0) ) //!!! changed air >= 70 to air >= 0 for testing
   {
+    // LEFTOFF TODO: check nnUSERTORQUE_pg2 value, if 0 then default to 100
+    // else, use the user's value supplied through nnUSERTORQUE_pg2
+
+    
     nbSTARTTEST_pg2_bool = false;
     highest_torque = 0;
+    nnUSERTORQUE_pg2.getValue(&user_torque_value);
+
+    if ( (user_torque_value > 0) && (user_torque_value <= 999) )
+    {
+      // user input a seek target within valid range
+      torque_seek_target = user_torque_value; 
+    }
+    else
+    {
+      // whatever value the user put in is no good, set default
+      torque_seek_target = 100;
+    }
+
+
+    Serial.print("User defined tq: "); Serial.println(user_torque_value);
+    Serial.print("Seek value: "); Serial.println(torque_seek_target);
     return true;
   }
   return false;
@@ -489,9 +528,15 @@ void state4()
 
     npTESTGOGOGO_PAGE.show();
 
+    // the 3 following lines show the user what the current
+    // seek target (lbf*in) is for the running test
+    char target_tq[10];
+    dtostrf(torque_seek_target, 6, 2, target_tq);
+    ntSEEKTARGET_pg3.setText(target_tq);
+
     servoMotorEnable(MOTOR_DISABLED);
     servoMotorDirection(MOTOR_CW);
-    runMotor(START_MOTOR, 0.01); // may need to adjust speed slower
+    runMotor(START_MOTOR, 0.005); // may need to adjust speed slower
   }
 }
 
@@ -533,7 +578,7 @@ bool transitionS4S5()
   }
 
   float tq = loadcellReadCurrentValue();
-  if ( (tq >= 100.0) && (!opticalEMERGENCY_stop_hit) )
+  if ( (tq >= torque_seek_target) && (!opticalEMERGENCY_stop_hit) )
   {
     // club withstood max torque successfully
     // so the test is considered a PASS
@@ -874,7 +919,7 @@ void updateDisplay()
   if ( _machine_state == IDLE )      
   { 
     ntCURRENTTORQUE_pg0.setText(buffer_tq);
-    ntMAXTORQUE_pg0.setText(buffer_tq);
+    ntMAXTORQUE_pg0.setText(high_tq);
   }
 }
 
@@ -931,6 +976,8 @@ void setup()
   S4->addTransition(&transitionS4S5, S5); // TEST RUNNING to TEST FINISHED
   S5->addTransition(&transitionS5S0, S0); // TEST FINISHED to IDLE
   S6->addTransition(&transitionS6S0, S0); // CALIBRATION to IDLE
+
+  Serial.println("Setup Complete");
 }
 
 
