@@ -51,7 +51,7 @@ volatile boolean opticalEMERGENCY_stop_hit = false;
 TimeSlice StatusSlice(2000);       // heartbeat object
 TimeSlice ParamSlice(100);
 long _heartbeat_interval    = 4000; // 4 second heartbeat
-long _param_update_interval = 200;  // refresh parameters on the touch screen every 250ms
+long _param_update_interval = 100;  // refresh parameters on the touch screen every X ms
 unsigned long hb_timer      = 0;    // holds the heartbeat timer in main loop
 unsigned long param_timer   = 0;    // holds the param timer in main loop
 
@@ -295,7 +295,7 @@ bool transitionS1S0()
 // State1 -> State2 transition criteria
 bool transitionS1S2()
 { 
-  if (opticalHOME_stop_hit || nbSKIPMOTOR_pg1_bool )
+  if ( opticalHOME_stop_hit || nbSKIPMOTOR_pg1_bool )
   {
     opticalHOME_stop_hit = false;
     nbSKIPMOTOR_pg1_bool = false;
@@ -382,15 +382,10 @@ bool transitionS2S4()
   // determine if the club is in the clamp acceptably. Unfortunately,
   // the way the air pressure transducer is hooked up, PSI is always
   // > 70 as long as air is connected, so this won't work. We'll keep
-  // the air pressure check in just in case we end up moving the 
-  // pressure transducer to the line that pressurizes when the clamps
-  // are closed
-  if ( nbSTARTTEST_pg2_bool && (air >= 0) ) //!!! changed air >= 70 to air >= 0 for testing
+  // the air pressure check in just to make sure the air supply is
+  // connected and working properly
+  if ( nbSTARTTEST_pg2_bool && (air >= 70) )
   {
-    // LEFTOFF TODO: check nnUSERTORQUE_pg2 value, if 0 then default to 100
-    // else, use the user's value supplied through nnUSERTORQUE_pg2
-
-    
     nbSTARTTEST_pg2_bool = false;
     highest_torque = 0;
     nnUSERTORQUE_pg2.getValue(&user_torque_value);
@@ -406,9 +401,8 @@ bool transitionS2S4()
       torque_seek_target = 100;
     }
 
-
-    Serial.print("User defined tq: "); Serial.println(user_torque_value);
-    Serial.print("Seek value: "); Serial.println(torque_seek_target);
+    //Serial.print("User defined tq: "); Serial.println(user_torque_value);
+    //Serial.print("Seek value: "); Serial.println(torque_seek_target);
     return true;
   }
   return false;
@@ -570,7 +564,7 @@ bool transitionS4S5()
     servoMotorEnable(MOTOR_DISABLED);
     servoMotorDirection(MOTOR_CCW); // back the torque tester off the club
     runMotor(START_MOTOR, 0.05);
-    delay(3000); // let the motor move away for 3 seconds
+    delay(2000); // let the motor move back to the HOME optical stop
     servoMotorEnable(MOTOR_DISABLED);
 
     OVERALL_TEST_PASS = false;
@@ -587,7 +581,7 @@ bool transitionS4S5()
     servoMotorEnable(MOTOR_DISABLED);
     servoMotorDirection(MOTOR_CCW); // back the torque tester off the club
     runMotor(START_MOTOR, 0.05);
-    delay(3000); // let the motor move away for 3 seconds
+    delay(2000); // let the motor move away for 3 seconds
     servoMotorEnable(MOTOR_DISABLED);
     
     OVERALL_TEST_PASS = true;
@@ -976,6 +970,11 @@ void setup()
   S4->addTransition(&transitionS4S5, S5); // TEST RUNNING to TEST FINISHED
   S5->addTransition(&transitionS5S0, S0); // TEST FINISHED to IDLE
   S6->addTransition(&transitionS6S0, S0); // CALIBRATION to IDLE
+
+  // do the next 2 lines because if we don't, highest_torque
+  // will not be written to the screen correctly on initial boot
+  float tq = loadcellReadCurrentValue();
+  highest_torque = tq;
 
   Serial.println("Setup Complete");
 }
