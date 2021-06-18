@@ -17,8 +17,10 @@ float scale_force_tolerance = 5.0f;
 
 void loadcellSetup()
 {
+    Serial.println("start loadcellSetup");
     loadcell.begin(LOADCELL_DOUT_PIN, LOADCELL_SCK_PIN);
     loadcell.set_scale(scale_calibration_factor);
+    Serial.println("end loadcellSetup");
 }
 
 long loadcellDetermineZero()
