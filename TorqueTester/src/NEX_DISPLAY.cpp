@@ -138,8 +138,6 @@ NexTouch *nex_listen_list[] =
 /* ==== END NEXTION NexTouch OBJECT INSTANTIATION ==== */
 
 
-
-
 // ==== STARTING NEXTION BUTTON CALLBACK FUNCTIONS ====
 // page 0 callbacks
 void nbSTARTTEST_pg0Callback(void *ptr)    { nbSTARTTEST_pg0_bool    = true; }
@@ -209,4 +207,3 @@ void setupNextion()
     nbENDCAL_pg5.attachPop(      nbENDCAL_pg5Callback,       &nbENDCAL_pg5);
     nbSAVESETTINGS_pg5.attachPop(nbSAVESETTINGS_pg5Callback, &nbSAVESETTINGS_pg5);
 }
-

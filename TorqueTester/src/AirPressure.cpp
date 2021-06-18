@@ -8,10 +8,8 @@ bool clamp_status = false;
 
 void setupAirValve()
 {
-    Serial.println("start setupAirValve");
     pinMode(CLAMP_PIN, OUTPUT);
     digitalWrite(CLAMP_PIN, clamp_status);
-    Serial.println("end setupAirValve");
 }
 
 
