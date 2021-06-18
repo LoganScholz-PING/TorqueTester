@@ -10,11 +10,11 @@
 #define LOADCELL_DOUT_PIN 3 // PE5
 #define LOADCELL_SCK_PIN 2  // PE4
 
-void loadcellSetup();
-long loadcellDetermineZero();
-void loadcellSetCalibrationFactor(float cal);
+void  loadcellSetup();
+long  loadcellDetermineZero();
+void  loadcellSetCalibrationFactor(float cal);
 float loadcellDetermineCalibrationFactor();
-void loadcellTare();
+void  loadcellTare();
 float loadcellReadCurrentValue();
 
 #endif
