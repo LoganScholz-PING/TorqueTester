@@ -1,6 +1,6 @@
 #include "LoadCell.h"
 #include "EEPROM_Arduino.h"
-#include <HX711.h>
+#include <HX711_L.h> // the _L file contains my changes
 
 extern boolean DEBUG;         // from main.cpp
 extern boolean _eeprom_dirty; // from EEPROM_Arduino.cpp

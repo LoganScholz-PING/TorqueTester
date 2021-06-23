@@ -522,6 +522,9 @@ void state4()
 
     npTESTGOGOGO_PAGE.show();
 
+    loadcellTare();
+    delay(250); // loadcellTare() takes time
+
     // the 3 following lines show the user what the current
     // seek target (lbf*in) is for the running test
     char target_tq[10];
@@ -530,7 +533,7 @@ void state4()
 
     servoMotorEnable(MOTOR_DISABLED);
     servoMotorDirection(MOTOR_CW);
-    runMotor(START_MOTOR, 0.005); // may need to adjust speed slower
+    runMotor(START_MOTOR, 0.02); // may need to adjust speed slower
   }
 }
 
@@ -564,7 +567,7 @@ bool transitionS4S5()
     servoMotorEnable(MOTOR_DISABLED);
     servoMotorDirection(MOTOR_CCW); // back the torque tester off the club
     runMotor(START_MOTOR, 0.05);
-    delay(2000); // let the motor move back to the HOME optical stop
+    delay(4000); // let the motor move back to the HOME optical stop
     servoMotorEnable(MOTOR_DISABLED);
 
     OVERALL_TEST_PASS = false;
@@ -581,7 +584,7 @@ bool transitionS4S5()
     servoMotorEnable(MOTOR_DISABLED);
     servoMotorDirection(MOTOR_CCW); // back the torque tester off the club
     runMotor(START_MOTOR, 0.05);
-    delay(2000); // let the motor move away for 3 seconds
+    delay(4000); // let the motor move away for 3 seconds
     servoMotorEnable(MOTOR_DISABLED);
     
     OVERALL_TEST_PASS = true;
